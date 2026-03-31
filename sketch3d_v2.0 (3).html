@@ -1,0 +1,2625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-512.svg">
+<title>Sketch3D</title>
+<meta name="theme-color" content="#d4b896">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sketch3D">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;700;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#d4b896;--bdr:#c8b48a;--acc:#1a1a2e;--mut:#8a7a5a;--pan:rgba(220,196,168,.96)}
+body{background:var(--bg);font-family:'DM Mono',monospace;overflow:hidden;height:100dvh;width:100dvw;touch-action:none;user-select:none}
+/* Paper grain overlay */
+#cc::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1;opacity:.04;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");background-size:200px;}
+#cc{position:fixed;inset:0}canvas{display:block}
+
+/* TOP BAR */
+#topbar{position:fixed;top:8px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:3px;z-index:200;background:var(--pan);border:1px solid var(--bdr);border-radius:11px;padding:4px 8px;box-shadow:0 2px 12px rgba(0,0,0,.07);backdrop-filter:blur(10px);max-width:calc(100vw - 16px);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+#topbar::-webkit-scrollbar{display:none}
+#ttl{font-family:'Syne',sans-serif;font-weight:800;font-size:12px;letter-spacing:.1em;color:var(--acc);margin-right:6px}@media(max-width:380px){#ttl{display:none}}
+.tsep{width:1px;height:16px;background:var(--bdr);margin:0 1px}
+.tb{width:30px;height:30px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--mut);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .12s;-webkit-tap-highlight-color:transparent;position:relative;font-family:'DM Mono',monospace;letter-spacing:-.02em}
+.tb:hover{background:rgba(26,26,46,.06);color:var(--acc)}.tb.on{background:rgba(26,26,46,.09);color:var(--acc);border-color:rgba(26,26,46,.2)}
+.tb[data-k]::after{content:attr(data-k);position:absolute;bottom:1px;right:2px;font-size:5.5px;color:var(--mut);opacity:.7}
+.tb.on[data-k]::after{color:var(--acc)}
+.pp{padding:2px 7px;border-radius:5px;border:1px solid var(--bdr);background:transparent;color:var(--mut);font-family:'DM Mono',monospace;font-size:9px;cursor:pointer;transition:all .12s}
+.pp.on{background:rgba(26,26,46,.08);color:var(--acc);border-color:rgba(26,26,46,.25)}
+
+/* ── SIDE PANEL SYSTEM ──────────────────────────────── */
+/* All controls on one side. Toggle left/right with ◧ button */
+:root{ --SP:10px; --SR:auto; } /* SP = panel side, SR = opposite */
+body.right-side{ --SP:auto; --SR:10px; }
+
+/* Common panel card style */
+.pcard{background:var(--pan);border:1px solid var(--bdr);border-radius:10px;
+  box-shadow:0 2px 10px rgba(0,0,0,.08);backdrop-filter:blur(10px)}
+
+/* SIDE COLUMN — anchored bottom-left, stacks upward from bottom */
+#sidecol{
+  position:fixed;left:var(--SP);right:var(--SR);bottom:44px;
+  z-index:200;display:flex;flex-direction:column-reverse;gap:6px;align-items:stretch;
+  width:168px;max-height:calc(100dvh - 80px);overflow-y:auto;overflow-x:visible;
+  scrollbar-width:none;
+}
+#sidecol::-webkit-scrollbar{display:none}
+/* Portrait/landscape handled by JS for reliable cross-browser behaviour */
+#portrait-bar { display:none; }
+#portrait-bar.active { display:flex; }
+/* Tool strip inside sidecol */
+#sidetools{display:flex;flex-direction:row;gap:3px;padding:5px 6px;flex-wrap:wrap;justify-content:center}
+.stb{width:32px;height:32px;border-radius:7px;border:1px solid transparent;
+  background:transparent;color:var(--mut);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;transition:all .12s;-webkit-tap-highlight-color:transparent}
+.stb:hover{background:rgba(26,26,46,.06);color:var(--acc)}
+.stb.on{background:rgba(26,26,46,.09);color:var(--acc);border-color:rgba(26,26,46,.2)}
+
+/* 1. COLOR SWATCHES */
+#colors{display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;padding:7px 8px;
+  justify-content:center;align-items:center}
+.cw{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2.5px solid transparent;
+  transition:all .11s;flex-shrink:0;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.cw.on{border-color:var(--acc);transform:scale(1.12)}.cw:hover{transform:scale(1.08)}
+#ccpick{width:26px;height:26px;border-radius:50%;border:1.5px dashed var(--bdr);cursor:pointer;
+  overflow:hidden;position:relative;background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red)}
+#ccpick.on{border-color:var(--acc);transform:scale(1.12)}
+#ccpick input{opacity:0;position:absolute;inset:0;width:100%;height:100%;cursor:pointer}
+
+/* 2. BRUSH SLIDERS */
+#bpanel{display:flex;flex-direction:row;gap:0;align-items:stretch;padding:0}
+.bslot{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 4px}
+.blbl{font-size:6px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut)}
+.bsep{width:1px;background:var(--bdr);margin:4px 0}
+input[type=range].vr{-webkit-appearance:none;writing-mode:vertical-lr;direction:rtl;
+  width:4px;height:56px;background:var(--bdr);border-radius:2px;outline:none;cursor:pointer}
+input[type=range].vr::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;
+  border-radius:50%;background:var(--acc);border:2px solid #fff}
+.bval{font-size:7px;color:var(--mut)}
+
+/* 3. NAV CUBE */
+#navcube{display:block;cursor:grab;border-radius:8px;background:transparent;
+  width:168px!important;height:148px!important;}
+#navcube:active{cursor:grabbing}
+
+/* 4. PLANE GIZMO */
+#ghud{display:flex;flex-direction:column;gap:4px;padding:7px 7px}
+.srow{display:flex;gap:2px}
+.sft{flex:1;padding:4px 2px;border-radius:4px;border:1px solid var(--bdr);
+  background:transparent;color:var(--mut);font-family:'DM Mono',monospace;
+  font-size:7px;cursor:pointer;text-align:center;transition:all .12s;white-space:nowrap;
+  min-height:26px;-webkit-tap-highlight-color:transparent}
+.sft.on{background:rgba(26,26,46,.1);color:var(--acc);border-color:rgba(26,26,46,.28)}
+#gc{display:block;cursor:crosshair;border-radius:6px;background:rgba(26,26,46,.02);
+  border:1px solid var(--bdr);width:154px!important;height:154px!important}
+#ghud-bottom{display:flex;align-items:center;gap:4px}
+#greset,#gsnap{padding:3px 6px;border-radius:4px;border:1px solid var(--bdr);
+  background:transparent;color:var(--mut);font-family:'DM Mono',monospace;
+  font-size:7px;cursor:pointer;transition:all .12s;letter-spacing:.04em;white-space:nowrap}
+#greset:hover,#gsnap:hover{background:rgba(26,26,46,.06);color:var(--acc)}
+#gsnap.on{background:rgba(26,26,46,.09);color:var(--acc);border-color:rgba(26,26,46,.25)}
+#ghint{font-size:5.5px;color:var(--mut);opacity:.65;flex:1;text-align:right}
+
+/* SIDE TOGGLE */
+#bside{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:200;
+  background:var(--pan);border:1px solid var(--bdr);border-radius:6px;padding:3px 10px;
+  font-size:7.5px;color:var(--mut);cursor:pointer;font-family:'DM Mono',monospace;
+  letter-spacing:.06em;box-shadow:0 1px 6px rgba(0,0,0,.06);transition:all .12s}
+#bside:hover{color:var(--acc)}
+
+/* STATUS */
+#sbar{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:7.5px;color:var(--mut);background:var(--pan);border:1px solid var(--bdr);border-radius:6px;padding:3px 9px;pointer-events:none;letter-spacing:.04em;white-space:nowrap;box-shadow:0 1px 6px rgba(0,0,0,.05);z-index:100}
+#mdot{display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--acc);margin-right:4px;vertical-align:middle;transition:background .2s}
+
+/* EXPORT MENU */
+#expmenu{position:fixed;top:55px;right:10px;z-index:300;background:var(--pan);border:1px solid var(--bdr);border-radius:9px;padding:5px 4px;box-shadow:0 3px 14px rgba(0,0,0,.1);display:none;flex-direction:column;gap:2px;min-width:120px;backdrop-filter:blur(10px)}
+#expmenu.vis{display:flex}
+.emb{padding:6px 9px;border-radius:5px;border:none;background:transparent;color:var(--acc);font-family:'DM Mono',monospace;font-size:8.5px;cursor:pointer;text-align:left;transition:all .11s}
+.emb:hover{background:rgba(26,26,46,.06)}
+.emsep{height:1px;background:var(--bdr);margin:2px 0}
+
+/* ERASE CURSOR */
+body.erasing{cursor:cell!important}
+body.erasing *{cursor:cell!important}
+
+
+</style>
+</head>
+<body>
+<div id="cc"></div>
+
+<div id="topbar">
+  <span id="ttl">SKETCH3D</span>
+  <div class="tsep"></div>
+  <button class="tb on" id="bdraw"  data-k="D" title="Draw (D)">✏️</button>
+  <button class="tb"    id="berase" data-k="E" title="Erase (E)">🧹</button>
+  <button class="tb"    id="bflat"  data-k="F" title="Flat brush (F)">🖊️</button>
+  <button class="tb on"  id="bsmooth" data-k="S" title="Smoothing (S)">〜</button>
+  <button class="tb"    id="bfill"   data-k="L" title="Fill toggle (L)" style="font-size:10px">◎</button>
+  <button class="tb"    id="bfillop" title="Fill opacity: 80% / 100%" style="font-size:8px">80%</button>
+  <div class="tsep"></div>
+  <button class="tb"    id="bundo"  title="Undo (⌘Z)">↩️</button>
+  <button class="tb"    id="bredo"  title="Redo (⌘⇧Z)">↪️</button>
+  <button class="tb"    id="bclear" title="Clear all">🗑️</button>
+  <div class="tsep"></div>
+  <button class="tb on" id="bsurf"  title="Surface">⬡</button>
+  <button class="tb on" id="bgrid"  title="Grid">⊞</button>
+  <button class="tb on" id="baxis"  title="Axis lines (A)">⊕</button>
+  <button class="tb on" id="bdepth" data-k="X" title="Depth cues (X)">◑</button>
+  <div class="tsep"></div>
+  <button class="tb"    id="bsave"  title="Save">💾</button>
+  <button class="tb"    id="bload"  title="Load">📂</button>
+  <button class="tb"    id="bexp"   title="Export">⬆️</button>
+  <div class="tsep"></div>
+  <button class="tb"    id="bpersp" data-k="V" title="Persp/Ortho (V)" style="font-size:9px">PERSP</button>
+</div>
+
+<!-- SIDE COLUMN (column-reverse: first child = bottom, last = top) -->
+<div id="sidecol">
+
+  <!-- BOTTOM: PLANE GIZMO (first child = bottom in column-reverse) -->
+  <div id="ghud" class="pcard">
+    <div class="srow">
+      <button class="sft on" data-surf="plane">▱Pln</button>
+      <button class="sft"    data-surf="cube">⬡Cube</button>
+      <button class="sft"    data-surf="cylinder">⬭Cyl</button>
+      <button class="sft"    data-surf="sphere">○Sph</button>
+    </div>
+    <div class="srow" id="plane-row">
+      <button class="sft"    data-plane="xy">XY</button>
+      <button class="sft on" data-plane="xz">XZ</button>
+      <button class="sft"    data-plane="yz">YZ</button>
+    </div>
+    <!-- Gizmo mode: move / rotate / scale -->
+    <div class="srow" id="gizmo-mode-row">
+      <button class="sft on" id="gm-move"   data-gm="move">↔ Move</button>
+      <button class="sft"    id="gm-rotate" data-gm="rotate">↻ Rot</button>
+      <button class="sft"    id="gm-scale"  data-gm="scale">⊕ Scale</button>
+    </div>
+    <!-- Axis filter: all / X / Y / Z -->
+    <div class="srow" id="gizmo-axis-row">
+      <button class="sft on" id="ga-all" data-ga="all" style="color:var(--mut)">ALL</button>
+      <button class="sft"    id="ga-x"   data-ga="x"   style="color:#e03040">X</button>
+      <button class="sft"    id="ga-y"   data-ga="y"   style="color:#22bb55">Y</button>
+      <button class="sft"    id="ga-z"   data-ga="z"   style="color:#3377ee">Z</button>
+    </div>
+    <canvas id="gc" width="154" height="154"></canvas>
+    <div id="ghud-bottom">
+      <button id="greset">RESET</button>
+      <button id="gsnap" class="on" title="Snap 45°">⊙45°</button>
+      <span id="ghint">move · rotate · scale</span>
+    </div>
+  </div>
+
+  <!-- NAV CUBE -->
+  <canvas id="navcube" class="pcard" width="168" height="148"
+          title="Drag to orbit · click face to snap"></canvas>
+
+  <!-- TOOL STRIP: pan, orbit, surface toggle, depth -->
+  <div id="sidetools" class="pcard">
+    <button class="stb"    id="sdraw"  title="Draw (D)">✏️</button>
+    <button class="stb"    id="serase" title="Erase (E)">🧹</button>
+    <button class="stb"    id="span"   title="Pan (P)">✋</button>
+    <button class="stb"    id="sorbit" title="Orbit (O)">🔄</button>
+    <button class="stb on" id="ssurf"  title="Surface">⬡</button>
+    <button class="stb on" id="sgrid"  title="Grid">⊞</button>
+    <button class="stb on" id="saxis"  title="Axis lines">⊕</button>
+    <button class="stb on" id="sdepth" title="Depth (X)">◑</button>
+    <button class="stb"    id="spersp" title="Persp/Ortho (V)" style="font-size:8px">PERSP</button>
+
+  </div>
+
+  <!-- BRUSH SIZE + OPACITY -->
+  <div id="bpanel" class="pcard">
+    <div class="bslot">
+      <div class="blbl">Size</div>
+      <input type="range" class="vr" id="szsld" min="1" max="20" value="4">
+      <span class="bval" id="szv">4</span>
+    </div>
+    <div class="bsep"></div>
+    <div class="bslot">
+      <div class="blbl">Opacity</div>
+      <input type="range" class="vr" id="opsld" min="10" max="100" value="95">
+      <span class="bval" id="opv">95</span>
+    </div>
+  </div>
+
+  <!-- TOP: COLOR SWATCHES (last child = top in column-reverse) -->
+  <div id="colors" class="pcard">
+    <div class="cw on" style="background:#000000" data-c="#000000"></div>
+    <div class="cw"    style="background:#ffffff;border:2px solid #b8a888" data-c="#ffffff"></div>
+    <div class="cw"    style="background:#c0392b" data-c="#c0392b"></div>
+    <div class="cw"    style="background:#2563a8" data-c="#2563a8"></div>
+    <div id="ccpick"><input type="color" id="cpick" value="#2a9d8f"></div>
+  </div>
+
+</div>
+<button id="bside" title="Toggle panel side">◧ LEFT</button>
+
+<!-- PORTRAIT BAR — shown on tall screens, full bottom panel -->
+<div id="portrait-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--pan);border-top:1px solid var(--bdr);backdrop-filter:blur(10px);padding:6px 8px;gap:6px;flex-direction:column;max-height:60vh;overflow-y:auto;-webkit-overflow-scrolling:touch">
+
+  <!-- ROW 1: NavCube + Plane Gizmo side by side -->
+  <div style="display:flex;gap:6px;align-items:flex-start">
+
+    <!-- NavCube -->
+    <canvas id="pb-navcube" width="160" height="148"
+      style="border-radius:8px;border:1px solid var(--bdr);background:rgba(26,26,46,.02);cursor:grab;flex-shrink:0"
+      title="Drag to orbit · tap face to snap"></canvas>
+
+    <!-- Plane Gizmo (surface type, plane preset, mini gizmo canvas) -->
+    <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
+      <div style="display:flex;gap:2px">
+        <button class="sft on" data-surf="plane"    style="font-size:6px;padding:2px 1px">▱Pln</button>
+        <button class="sft"    data-surf="cube"     style="font-size:6px;padding:2px 1px">⬡Cube</button>
+        <button class="sft"    data-surf="cylinder" style="font-size:6px;padding:2px 1px">⬭Cyl</button>
+        <button class="sft"    data-surf="sphere"   style="font-size:6px;padding:2px 1px">○Sph</button>
+      </div>
+      <div style="display:flex;gap:2px">
+        <button class="sft"    data-plane="xy" style="font-size:6px;padding:2px 2px">XY</button>
+        <button class="sft on" data-plane="xz" style="font-size:6px;padding:2px 2px">XZ</button>
+        <button class="sft"    data-plane="yz" style="font-size:6px;padding:2px 2px">YZ</button>
+      </div>
+      <!-- Gizmo mode + axis filter row -->
+      <div style="display:flex;gap:2px">
+        <button id="pb-gm-move"   class="sft on" style="font-size:6px;padding:2px 2px">↔Move</button>
+        <button id="pb-gm-rotate" class="sft"    style="font-size:6px;padding:2px 2px">↻Rot</button>
+        <button id="pb-gm-scale"  class="sft"    style="font-size:6px;padding:2px 2px">⊕Scl</button>
+      </div>
+      <div style="display:flex;gap:2px">
+        <button id="pb-ax-all" class="sft on" style="font-size:6px;padding:2px 2px;color:#888">ALL</button>
+        <button id="pb-ax-x"   class="sft"    style="font-size:6px;padding:2px 2px;color:#e03040">X</button>
+        <button id="pb-ax-y"   class="sft"    style="font-size:6px;padding:2px 2px;color:#22bb55">Y</button>
+        <button id="pb-ax-z"   class="sft"    style="font-size:6px;padding:2px 2px;color:#3377ee">Z</button>
+        <button id="pb-greset" class="sft"    style="font-size:6px;padding:2px 2px">RST</button>
+        <button id="pb-gsnap"  class="sft on" style="font-size:6px;padding:2px 2px">⊙45</button>
+      </div>
+      <canvas id="pb-gc" width="140" height="140"
+        style="border-radius:6px;background:rgba(26,26,46,.02);border:1px solid var(--bdr);cursor:crosshair;width:140px;height:140px;display:block"></canvas>
+    </div>
+  </div>
+
+  <!-- ROW 2: Tools -->
+  <div style="display:flex;gap:3px;justify-content:center;align-items:center;overflow-x:auto">
+    <button class="stb on" id="pb-draw"  title="Draw">✏️</button>
+    <button class="stb"    id="pb-erase" title="Erase">🧹</button>
+    <button class="stb"    id="pb-pan"   title="Pan">✋</button>
+    <button class="stb"    id="pb-orbit" title="Orbit">🔄</button>
+    <div style="width:1px;height:22px;background:var(--bdr);flex-shrink:0"></div>
+    <button class="stb"    id="pb-flat"  title="Flat brush">🖊️</button>
+    <button class="stb on" id="pb-fill"  title="Fill" style="font-size:11px">◎</button>
+    <div style="width:1px;height:22px;background:var(--bdr);flex-shrink:0"></div>
+    <button class="stb"    id="pb-undo"  title="Undo">↩️</button>
+    <button class="stb"    id="pb-clear" title="Clear">🗑️</button>
+    <div style="width:1px;height:22px;background:var(--bdr);flex-shrink:0"></div>
+    <button class="stb on" id="pb-surf"  title="Surface">⬡</button>
+    <button class="stb on" id="pb-depth" title="Depth">◑</button>
+    <button class="stb"    id="pb-persp" title="Persp/Ortho" style="font-size:7px">PERSP</button>
+  </div>
+
+  <!-- ROW 3: Colors + sliders -->
+  <div style="display:flex;gap:5px;justify-content:center;align-items:center">
+    <div class="cw on" style="background:#000000;width:28px;height:28px" data-c="#000000"></div>
+    <div class="cw"    style="background:#ffffff;border:2px solid #b8a888;width:28px;height:28px" data-c="#ffffff"></div>
+    <div class="cw"    style="background:#c0392b;width:28px;height:28px" data-c="#c0392b"></div>
+    <div class="cw"    style="background:#2563a8;width:28px;height:28px" data-c="#2563a8"></div>
+    <div style="width:1px;height:22px;background:var(--bdr);flex-shrink:0"></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:1px">
+      <span style="font-size:6px;color:var(--mut)">SZ</span>
+      <input type="range" id="pb-sz" min="1" max="20" value="4"
+        style="-webkit-appearance:none;width:70px;height:4px;background:var(--bdr);border-radius:2px;outline:none">
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:1px">
+      <span style="font-size:6px;color:var(--mut)">OP</span>
+      <input type="range" id="pb-op" min="10" max="100" value="95"
+        style="-webkit-appearance:none;width:70px;height:4px;background:var(--bdr);border-radius:2px;outline:none">
+    </div>
+  </div>
+</div>
+
+<div id="sbar"><span id="mdot"></span><span id="stxt">DRAW · drag surface to sketch</span></div>
+
+<div id="expmenu">
+  <button class="emb" id="exgltf">glTF (.glb)</button>
+  <button class="emb" id="exobj">OBJ (.obj)</button>
+  <button class="emb" id="exusd">USD (.usda)</button>
+  <button class="emb" id="exusdz">USDZ (.usdz)</button>
+  <div class="emsep"></div>
+  <button class="emb" id="exjson">Scene JSON</button>
+</div>
+<input type="file" id="filein" accept=".json" style="display:none">
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ================================================================
+//  SKETCH 3D — clean rewrite
+// ================================================================
+const container = document.getElementById('cc');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xd4b896);
+scene.fog = new THREE.FogExp2(0xd4b896, 0.012);
+
+// Z-up: camera uses Z as vertical
+const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.01, 500);
+let orthoZoom = 8; // mutable zoom for ortho camera
+const ortho = new THREE.OrthographicCamera(-orthoZoom, orthoZoom, orthoZoom, -orthoZoom, 0.01, 500);
+let useOrtho = false;
+function activeCam() { return useOrtho ? ortho : camera; }
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.sortObjects = true;
+container.appendChild(renderer.domElement);
+
+// Lights
+scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+const sun = new THREE.DirectionalLight(0xffffff, 0.5);
+sun.position.set(5, 4, 8); scene.add(sun);
+
+// XY grid facing Z (Z-up)
+// Grid: dark warm brown lines clearly visible on kraft background
+const gridH = new THREE.GridHelper(20, 20, 0xa08858, 0xc8aa78);
+gridH.rotation.x = Math.PI / 2; // lay flat on XY plane
+scene.add(gridH);
+
+// World axis lines (X=red, Y=green, Z=blue)
+const axisGroup = new THREE.Group();
+scene.add(axisGroup);
+(function(){
+  const LEN = 8;
+  [[new THREE.Vector3(LEN,0,0),'#e03040'],[new THREE.Vector3(0,LEN,0),'#22bb55'],[new THREE.Vector3(0,0,LEN),'#3377ee']].forEach(([tip,col])=>{
+    const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), tip]);
+    const mat = new THREE.LineBasicMaterial({color:col, transparent:true, opacity:0.55});
+    axisGroup.add(new THREE.Line(geo,mat));
+    // Negative half faint
+    const geo2 = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), tip.clone().negate()]);
+    const mat2 = new THREE.LineBasicMaterial({color:col, transparent:true, opacity:0.18});
+    axisGroup.add(new THREE.Line(geo2,mat2));
+  });
+})();
+let axisLinesOn = true;
+
+// ================================================================
+//  DRAWING SURFACE
+// ================================================================
+const PNORMALS = {
+  xy: new THREE.Vector3(0, 0, 1),
+  xz: new THREE.Vector3(0, 1, 0),
+  yz: new THREE.Vector3(1, 0, 0),
+};
+// All surfaces use a single light warm-grey trace — like pencil on paper
+const SURF_TRACE = 0x7a5c3a; // warm dark brown — visible against kraft bg
+const PTINTS = { xy: SURF_TRACE, xz: SURF_TRACE, yz: SURF_TRACE };
+
+let curPlane = 'xz', surfType = 'plane';
+const surfPos = new THREE.Vector3(0,0,0);
+const surfEuler = new THREE.Euler(0,0,0,'XYZ');
+let surfScale = 2.0; // 2x default as requested
+const surfScaleAxes = new THREE.Vector3(1,1,1);
+
+const surfGroup = new THREE.Group();
+scene.add(surfGroup);
+let surfMesh = null;
+let surfFillMat = null, surfWireMat = null;
+let isHovering = false;
+
+function buildSurf() {
+  while (surfGroup.children.length) {
+    const c = surfGroup.children[0];
+    if(c.geometry)c.geometry.dispose(); if(c.material)c.material.dispose(); surfGroup.remove(c);
+  }
+  surfMesh = null;
+  const tint = PTINTS[curPlane] || 0x2a9d8f;
+  let geo;
+  if      (surfType==='plane')    geo = new THREE.PlaneGeometry(6,6);
+  else if (surfType==='cube')     geo = new THREE.BoxGeometry(3,3,3);
+  else if (surfType==='cylinder') geo = new THREE.CylinderGeometry(1.5,1.5,3,32);
+  else                            geo = new THREE.SphereGeometry(1.8,32,24);
+
+  surfFillMat = new THREE.MeshStandardMaterial({
+    color:tint, transparent:true, opacity:0.16,
+    side:THREE.DoubleSide, depthWrite:false, roughness:0.9,
+  });
+  surfMesh = new THREE.Mesh(geo, surfFillMat);
+  surfMesh.renderOrder = 0;
+  surfGroup.add(surfMesh);
+
+  const wgeo = new THREE.WireframeGeometry(geo);
+  surfWireMat = new THREE.LineBasicMaterial({color:tint,transparent:true,opacity:0.55,depthWrite:false});
+  const wire = new THREE.LineSegments(wgeo, surfWireMat);
+  wire.renderOrder = 1;
+  surfGroup.add(wire);
+
+  // Bright border edge around plane perimeter for depth anchor
+  if (surfType==='plane') {
+    const half=3; // half of plane size=6
+    const edgePts=[
+      new THREE.Vector3(-half,-half,0), new THREE.Vector3( half,-half,0),
+      new THREE.Vector3( half,-half,0), new THREE.Vector3( half, half,0),
+      new THREE.Vector3( half, half,0), new THREE.Vector3(-half, half,0),
+      new THREE.Vector3(-half, half,0), new THREE.Vector3(-half,-half,0),
+    ];
+    const edgeGeo=new THREE.BufferGeometry().setFromPoints(edgePts);
+    const edgeMat=new THREE.LineBasicMaterial({color:tint,transparent:false,opacity:1.0,depthWrite:false});
+    const edge=new THREE.LineSegments(edgeGeo,edgeMat);
+    edge.renderOrder=2;
+    surfGroup.add(edge);
+  }
+
+  syncSurf();
+}
+
+function syncSurf() {
+  const bq = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), PNORMALS[curPlane]);
+  surfGroup.quaternion.copy(new THREE.Quaternion().setFromEuler(surfEuler).multiply(bq));
+  surfGroup.position.copy(surfPos);
+  surfGroup.scale.set(
+    surfScale * surfScaleAxes.x,
+    surfScale * surfScaleAxes.y,
+    surfScale * surfScaleAxes.z
+  );
+  if (window._gDraw) window._gDraw();
+}
+
+function setSurfHover(on) {
+  if (!surfFillMat || !surfWireMat || on===isHovering) return;
+  isHovering = on;
+  surfFillMat.opacity = on ? 0.38 : 0.16;
+  surfFillMat.emissive = on ? new THREE.Color(SURF_TRACE) : new THREE.Color(0);
+  surfFillMat.emissiveIntensity = on ? 0.07 : 0;
+  surfWireMat.opacity = on ? 0.5 : 0.28;
+}
+
+buildSurf();
+
+// ================================================================
+//  CAMERA
+// ================================================================
+// Front-ish view: comfortable angle showing XY plane face-on with slight tilt
+const cam = {
+  theta: -Math.PI/2, phi: Math.PI/2, radius: 10,
+  target: new THREE.Vector3(0,0,0),
+  active:false, panActive:false,
+  sx:0,sy:0,st:0,sp:0,
+  psx:0,psy:0,pst:new THREE.Vector3(),panAnchor:null,panTargetAtStart:new THREE.Vector3(),
+};
+
+function syncOrtho() {
+  const a = innerWidth/innerHeight;
+  ortho.left=-orthoZoom*a; ortho.right=orthoZoom*a;
+  ortho.top=orthoZoom; ortho.bottom=-orthoZoom;
+  ortho.updateProjectionMatrix();
+}
+
+function updCam() {
+  // Z-up spherical: theta=azimuth (around Z), phi=elevation from Z
+  const {theta,phi,radius,target} = cam;
+  const p = new THREE.Vector3(
+    target.x + radius * Math.sin(phi) * Math.cos(theta),
+    target.y + radius * Math.sin(phi) * Math.sin(theta),
+    target.z + radius * Math.cos(phi)
+  );
+  camera.position.copy(p); camera.up.set(0,0,1); camera.lookAt(target);
+  ortho.position.copy(p);  ortho.up.set(0,0,1);  ortho.lookAt(target);
+  syncOrtho();
+  if (window._gDraw) window._gDraw();
+  if (window._ncDraw) window._ncDraw();
+  if (window._pbNcDraw) window._pbNcDraw();
+  if (window._pbGcDraw) window._pbGcDraw();
+}
+updCam();
+
+// ================================================================
+//  SCREEN → WORLD  (always via mesh raycast)
+// ================================================================
+const drawRC = new THREE.Raycaster();
+
+function s2w(px, py) {
+  if (!surfMesh) return null;
+  const r = renderer.domElement.getBoundingClientRect();
+  drawRC.setFromCamera(new THREE.Vector2(
+    ((px-r.left)/r.width)*2-1,
+    -((py-r.top)/r.height)*2+1
+  ), activeCam());
+  // Force DoubleSide for hit on both faces
+  const prev = surfMesh.material.side;
+  surfMesh.material.side = THREE.DoubleSide;
+  const hits = drawRC.intersectObject(surfMesh, false);
+  surfMesh.material.side = prev;
+  return hits.length ? hits[0].point.clone() : null;
+}
+
+const hoverRC = new THREE.Raycaster();
+function checkHover(px, py) {
+  if (!surfMesh) return false;
+  const r = renderer.domElement.getBoundingClientRect();
+  hoverRC.setFromCamera(new THREE.Vector2(
+    ((px-r.left)/r.width)*2-1,
+    -((py-r.top)/r.height)*2+1
+  ), activeCam());
+  const prev = surfMesh.material.side;
+  surfMesh.material.side = THREE.DoubleSide;
+  const hits = hoverRC.intersectObject(surfMesh, false);
+  surfMesh.material.side = prev;
+  return hits.length > 0;
+}
+
+// ================================================================
+//  STATE
+// ================================================================
+let mode = 'draw';
+let flatBrush = false;
+let fillEnabled = false; // lasso-fill OFF by default
+let fillOpaque = false; // false=80%, true=100%
+let curColor = '#000000';
+let brushSz = 4, brushOp = 0.95;
+let isDrawing = false;
+let rawPts = [], smoothPts = [], velHistory = [];
+let lazyPos = null;
+const LAZY_ON = 0.18, LAZY_OFF = 1.0;
+let smoothingOn = true;
+let LAZY = LAZY_ON;
+const strokes = [];
+
+// ================================================================
+//  DEPTH SYSTEM — per-segment, per-vertex frosted glass
+//  Each ring of a tube is tested independently, so only the
+//  portion of a stroke actually behind the plane gets lightened.
+// ================================================================
+const BG_COL = new THREE.Color(0xd4b896); // paper background
+
+function getDrawPlane() {
+  const n = new THREE.Vector3(0,0,1).applyQuaternion(surfGroup.quaternion);
+  return { n, d: n.dot(surfPos) };
+}
+function signedDist(pt, plane) { return plane.n.dot(pt) - plane.d; }
+
+// ── DEPTH: per-vertex ring colouring ──────────────────────────
+// Strokes are built from world-space points and added directly to
+// scene with no parent transform, so geometry positions ARE world
+// coordinates. No matrix transform needed — just read pos directly.
+function recolorTubeByDepth(mesh, strokeColor, plane) {
+  if (!mesh.geometry||!mesh.geometry.attributes||!mesh.geometry.attributes.position) return;
+  const geo = mesh.geometry;
+  const pos = geo.attributes.position;
+
+  if (!geo.attributes.color) {
+    geo.setAttribute('color',
+      new THREE.Float32BufferAttribute(new Float32Array(pos.count * 3), 3));
+  }
+  const col = geo.attributes.color;
+  const baseCol = new THREE.Color(strokeColor);
+  const radSeg = Math.max(1, mesh.userData.radSeg || 6);
+  const ringCount = Math.floor(pos.count / radSeg);
+  const cen = new THREE.Vector3();
+
+  for (let ring = 0; ring < ringCount; ring++) {
+    cen.set(0,0,0);
+    const rs = ring * radSeg;
+    let cnt = 0;
+    for (let s = 0; s < radSeg && rs+s < pos.count; s++, cnt++) {
+      cen.x += pos.getX(rs+s);
+      cen.y += pos.getY(rs+s);
+      cen.z += pos.getZ(rs+s);
+    }
+    if (!cnt) continue;
+    cen.divideScalar(cnt);
+
+    // Positions are already world-space (stroke built from world pts)
+    const dist = signedDist(cen, plane);
+    const ringCol = baseCol.clone();
+    if (dist < -0.02) {
+      // Linearly fade toward paper colour — minimum 40%, max 85%
+      const t = Math.min(0.85, 0.40 + (-dist - 0.02) * 0.55);
+      ringCol.lerp(BG_COL, t);
+    }
+    for (let s = 0; s < radSeg && rs+s < pos.count; s++) {
+      col.setXYZ(rs+s, ringCol.r, ringCol.g, ringCol.b);
+    }
+  }
+  col.needsUpdate = true;
+  mesh.material.vertexColors = true;
+  mesh.material.color.set(0xffffff); // white base so vertex color shows pure
+  mesh.material.needsUpdate = true;
+}
+
+let depthCuesOn = true; // declared here so it exists before first use
+
+let _lastPlaneKey = '';
+function updateDepth() {
+  if (!depthCuesOn) return;
+  const plane = getDrawPlane();
+  // Only recompute if plane actually changed (saves mobile GPU bandwidth)
+  const key = `${plane.n.x.toFixed(3)},${plane.n.y.toFixed(3)},${plane.n.z.toFixed(3)},${plane.d.toFixed(3)}`;
+  const force = key !== _lastPlaneKey;
+  _lastPlaneKey = key;
+  for (const s of strokes) {
+    if (!force && s._depthKey === key) continue; // already correct
+    s.mesh.traverse(c => {
+      if (c.isMesh && c.geometry && c.geometry.attributes && c.geometry.attributes.position)
+        recolorTubeByDepth(c, s.color, plane);
+    });
+    s._depthKey = key;
+  }
+}
+
+function resetDepthColors() {
+  for (const s of strokes) {
+    s.mesh.traverse(c => {
+      if (!c.isMesh || !c.material) return;
+      c.material.vertexColors = false;
+      if (c.material.color) c.material.color.set(new THREE.Color(s.color));
+      c.material.needsUpdate = true;
+    });
+  }
+}
+
+
+// ================================================================
+//  STROKE PHYSICS
+// ================================================================
+function computeVels(pts) {
+  const v = [0];
+  for (let i=1;i<pts.length;i++) v.push(pts[i].distanceTo(pts[i-1]));
+  const s=[...v];
+  for (let i=1;i<v.length-1;i++) s[i]=(v[i-1]+v[i]+v[i+1])/3;
+  return s;
+}
+
+function buildTube(pts, vels, color, sz, op, flat) {
+  if (pts.length < 2) return null;
+  const f=[pts[0]], fv=[vels[0]];
+  for (let i=1;i<pts.length;i++) {
+    if (f[f.length-1].distanceTo(pts[i])>0.003){ f.push(pts[i]); fv.push(vels[i]); }
+  }
+  if (f.length<2) return null;
+  const maxV=Math.max(...fv)||1, minV=Math.min(...fv), range=maxV-minV||1;
+  const N=f.length, baseR=sz*0.011;
+  const col=new THREE.Color(color);
+  const mat=new THREE.MeshStandardMaterial({
+    color:col,transparent:op<1,opacity:op,roughness:0.55,metalness:0.04,
+    emissive:col,emissiveIntensity:0.05,side:THREE.DoubleSide,
+  });
+
+  if (flat) {
+    // Marker ribbon: flat quads oriented to drawing surface normal
+    const curve = new THREE.CatmullRomCurve3(f);
+    const segs = Math.max(N*3, 12);
+    const worldNorm = new THREE.Vector3(0,0,1).applyQuaternion(surfGroup.quaternion);
+    const pos=[], norms=[], idx=[];
+    for (let i=0;i<=segs;i++) {
+      const t=i/segs;
+      const tz=(t<0.08?t/0.08:t>0.92?(1-t)/0.08:1);
+      const vIdx=Math.min(Math.floor(t*(N-1)),N-1);
+      const vn=(fv[vIdx]-minV)/range;
+      const vw=0.45+0.55*(1-vn);
+      const w=baseR*4*vw*Math.pow(Math.max(0.05,tz),0.45);
+      const h=baseR*0.5*Math.max(0.04,tz);
+      const pt=curve.getPoint(t);
+      const tang=curve.getTangent(t).normalize();
+      let side=new THREE.Vector3().crossVectors(tang,worldNorm).normalize();
+      if(side.lengthSq()<0.001)side.set(1,0,0);
+      const up=worldNorm;
+      pos.push(
+        pt.x+side.x*w+up.x*h, pt.y+side.y*w+up.y*h, pt.z+side.z*w+up.z*h,
+        pt.x-side.x*w+up.x*h, pt.y-side.y*w+up.y*h, pt.z-side.z*w+up.z*h,
+        pt.x+side.x*w-up.x*h, pt.y+side.y*w-up.y*h, pt.z+side.z*w-up.z*h,
+        pt.x-side.x*w-up.x*h, pt.y-side.y*w-up.y*h, pt.z-side.z*w-up.z*h,
+      );
+      const un=up.toArray(), dn=up.clone().negate().toArray();
+      norms.push(...un,...un,...dn,...dn);
+    }
+    for (let i=0;i<segs;i++) {
+      const b=i*4;
+      idx.push(b,b+4,b+1, b+1,b+4,b+5);   // top
+      idx.push(b+2,b+3,b+6, b+3,b+7,b+6); // bottom
+      idx.push(b,b+2,b+4,  b+2,b+6,b+4);  // side A
+      idx.push(b+1,b+5,b+3, b+3,b+5,b+7); // side B
+    }
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+    geo.setAttribute('normal',new THREE.Float32BufferAttribute(norms,3));
+    geo.setIndex(idx); geo.computeVertexNormals();
+    const m=new THREE.Mesh(geo,mat); m.renderOrder=3; m.userData.radSeg=4; return m;
+  }
+
+  // Round tapered tube
+  try {
+    const curve=new THREE.CatmullRomCurve3(f);
+    const segs=Math.max(N*3,12), radSeg=Math.min(8,Math.max(5,segs>>2));
+    const geo=new THREE.TubeGeometry(curve,segs,baseR,radSeg,false);
+    const pa=geo.attributes.position, rc2=segs+1;
+    for (let ring=0;ring<rc2;ring++) {
+      const t=ring/(rc2-1);
+      const tz=t<0.12?t/0.12:t>0.88?(1-t)/0.12:1;
+      const taper=Math.max(0.04,Math.pow(tz,0.6));
+      const vIdx=Math.min(Math.floor(t*(N-1)),N-1);
+      const vn=(fv[vIdx]-minV)/range;
+      const sc=taper*(0.5+0.5*(1-vn));
+      const rs=ring*radSeg;
+      const pt=curve.getPoint(t);
+      for(let s=0;s<radSeg;s++){
+        const vi=rs+s; if(vi>=pa.count)break;
+        pa.setXYZ(vi,pt.x+(pa.getX(vi)-pt.x)*sc,pt.y+(pa.getY(vi)-pt.y)*sc,pt.z+(pa.getZ(vi)-pt.z)*sc);
+      }
+    }
+    pa.needsUpdate=true; geo.computeVertexNormals();
+    const m=new THREE.Mesh(geo,mat); m.renderOrder=3; m.userData.radSeg=radSeg; return m;
+  } catch(e) { return null; }
+}
+
+function buildCap(pt,color,sz,op) {
+  const m=new THREE.Mesh(new THREE.SphereGeometry(sz*0.011,6,6),
+    new THREE.MeshStandardMaterial({color:new THREE.Color(color),transparent:op<1,opacity:op,roughness:0.55}));
+  m.position.copy(pt); m.renderOrder=3; return m;
+}
+
+// ================================================================
+//  LASSO FILL
+//  When a stroke closes (end near start), project points onto the
+//  stroke's own plane (computed via Newell's method) and fill with
+//  a ShapeGeometry. Opacity = 30% of stroke opacity.
+// ================================================================
+function buildFill(pts, color, op) {
+  if (pts.length < 6) return null;
+  // Newell's method: sum cross products of consecutive edges → area-weighted normal
+  const N = new THREE.Vector3();
+  for (let i=0;i<pts.length;i++) {
+    const a=pts[i], b=pts[(i+1)%pts.length];
+    N.x += (a.y-b.y)*(a.z+b.z);
+    N.y += (a.z-b.z)*(a.x+b.x);
+    N.z += (a.x-b.x)*(a.y+b.y);
+  }
+  if (N.lengthSq()<1e-8) return null;
+  N.normalize();
+  // Centroid
+  const cen=new THREE.Vector3();
+  pts.forEach(p=>cen.add(p)); cen.divideScalar(pts.length);
+  // Local 2D axes on the plane
+  const up=Math.abs(N.y)<0.9?new THREE.Vector3(0,1,0):new THREE.Vector3(1,0,0);
+  const ax=new THREE.Vector3().crossVectors(up,N).normalize();
+  const ay=new THREE.Vector3().crossVectors(N,ax).normalize();
+  // Project 3D points to 2D shape
+  const shape=new THREE.Shape();
+  pts.forEach((p,i)=>{
+    const d=p.clone().sub(cen);
+    i===0?shape.moveTo(d.dot(ax),d.dot(ay)):shape.lineTo(d.dot(ax),d.dot(ay));
+  });
+  shape.closePath();
+  const geo=new THREE.ShapeGeometry(shape);
+  const fillOp = (typeof fillOpaque!=="undefined"&&fillOpaque) ? op : op*0.80;
+  const isOpaque = fillOp >= 0.99;
+  const mat=new THREE.MeshBasicMaterial({
+    color:new THREE.Color(color),
+    transparent:!isOpaque,
+    opacity:fillOp,
+    side:THREE.DoubleSide,
+    depthWrite:isOpaque  // opaque fills block geometry behind them
+  });
+  const mesh=new THREE.Mesh(geo,mat); mesh.renderOrder=isOpaque?5:2;
+  // Orient fill to match stroke plane
+  const M=new THREE.Matrix4().makeBasis(ax,ay,N);
+  mesh.quaternion.setFromRotationMatrix(M);
+  mesh.position.copy(cen);
+  return mesh;
+}
+
+let prevLine = null;
+function updPrev(pts) {
+  if (prevLine){scene.remove(prevLine);prevLine=null;}
+  if (pts.length<2) return;
+  prevLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:new THREE.Color(curColor),transparent:true,opacity:brushOp*0.75,linewidth:2}));
+  prevLine.renderOrder=4; scene.add(prevLine);
+}
+
+function finStroke() {
+  if (prevLine){scene.remove(prevLine);prevLine=null;}
+  // Grab and clear immediately — prevents double-call from synthetic mouse events
+  const pts = (smoothPts.length>=2 ? smoothPts : rawPts).slice();
+  rawPts=[]; smoothPts=[]; velHistory=[]; lazyPos=null;
+  if (pts.length<2) return;
+  const vels=computeVels(pts);
+  const g=new THREE.Group();
+  const tube=buildTube(pts,vels,curColor,brushSz,brushOp,flatBrush);
+  if (tube) g.add(tube);
+  if (!flatBrush) {
+    g.add(buildCap(pts[0],curColor,brushSz,brushOp));
+    g.add(buildCap(pts[pts.length-1],curColor,brushSz,brushOp));
+  }
+  if (fillEnabled && pts.length>=8 && pts[0].distanceTo(pts[pts.length-1])<0.4) {
+    const fill=buildFill(pts,curColor,brushOp);
+    if (fill) g.add(fill);
+  }
+  scene.add(g);
+  redoStack.length = 0;
+  strokes.push({pts,vels,color:curColor,sz:brushSz,op:brushOp,flat:flatBrush,mesh:g,_depthKey:''});
+}
+
+const redoStack = [];
+function undo() {
+  if (!strokes.length) return;
+  const s = strokes.pop();
+  scene.remove(s.mesh);
+  redoStack.push(s); // keep mesh alive for redo
+  // Invalidate depth cache
+  _lastPlaneKey = '';
+}
+function redo() {
+  if (!redoStack.length) return;
+  const s = redoStack.pop();
+  scene.add(s.mesh);
+  strokes.push(s);
+  _lastPlaneKey = '';
+}
+function clearAll() {
+  while (strokes.length) {
+    const s = strokes.pop(); scene.remove(s.mesh);
+    s.mesh.traverse(function(c){if(c.geometry)c.geometry.dispose();if(c.material)c.material.dispose();});
+  }
+  redoStack.length = 0;
+}
+
+// ================================================================
+//  ERASER — screen-space proximity approach (much more reliable)
+//  Projects each stroke's points to screen, checks 2D distance.
+// ================================================================
+function tryErase(px, py) {
+  const r = renderer.domElement.getBoundingClientRect();
+  const sx = px - r.left, sy = py - r.top;
+  const W = r.width, H = r.height;
+  const ac = activeCam();
+  const THRESH = 22; // screen pixels
+  const tmpV = new THREE.Vector3();
+
+  for (let i=strokes.length-1;i>=0;i--) {
+    const s=strokes[i];
+    let hit=false;
+    // Check a sampled subset of the stroke's 3D points
+    const step=Math.max(1,Math.floor(s.pts.length/30));
+    for (let j=0;j<s.pts.length;j+=step) {
+      tmpV.copy(s.pts[j]);
+      tmpV.project(ac);
+      const scx=(tmpV.x*0.5+0.5)*W;
+      const scy=(-tmpV.y*0.5+0.5)*H;
+      if (Math.sqrt((scx-sx)**2+(scy-sy)**2)<THRESH){hit=true;break;}
+    }
+    if (hit) {
+      const removed=strokes.splice(i,1)[0];
+      scene.remove(removed.mesh);
+      removed.mesh.traverse(c=>{if(c.geometry)c.geometry.dispose();if(c.material)c.material.dispose();});
+      return true;
+    }
+  }
+  return false;
+}
+
+// ================================================================
+//  POINTER EVENTS
+// ================================================================
+function ppos(e){return e.touches?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY};}
+let lastPD=null;
+
+// Camera pan helpers (Z-up aware)
+function camRight(){
+  return new THREE.Vector3().crossVectors(
+    new THREE.Vector3().subVectors(camera.position,cam.target).normalize(),
+    new THREE.Vector3(0,0,1)
+  ).normalize();
+}
+function camUp(){
+  const forward=new THREE.Vector3().subVectors(cam.target,camera.position).normalize();
+  return new THREE.Vector3().crossVectors(forward,camRight()).normalize();
+}
+
+// Reset all gesture state cleanly — call on every pointerup/touchend
+function resetGestureState() {
+  cam.active    = false;
+  cam.panActive = false;
+  lastPD        = null;
+}
+
+function cancelDraw() {
+  if (isDrawing) {
+    isDrawing = false;
+    rawPts=[]; smoothPts=[]; velHistory=[]; lazyPos=null;
+    if (prevLine) { scene.remove(prevLine); prevLine=null; }
+  }
+}
+
+function onDown(e) {
+  // ── Two-finger: always orbit + pinch zoom
+  if (e.touches && e.touches.length >= 2) {
+    cancelDraw();
+    lastPD = pinchD(e);
+    cam.active = true;
+    cam.sx = (e.touches[0].clientX+e.touches[1].clientX)/2;
+    cam.sy = (e.touches[0].clientY+e.touches[1].clientY)/2;
+    cam.st = cam.theta; cam.sp = cam.phi;
+    return;
+  }
+
+  // ── Middle mouse = pan
+  if (e.button===1) { startPan(e); e.preventDefault(); return; }
+  // ── Right mouse = orbit
+  if (e.button===2) { startOrbit(e); return; }
+  // ── Mode-based single-finger/click
+  if (mode==='orbit') { startOrbit(e); return; }
+  if (mode==='pan')   { startPan(e);   return; }
+  if (mode==='erase') { tryErase(e.clientX||ppos(e).x, e.clientY||ppos(e).y); return; }
+  if (mode==='draw') {
+    const p = ppos(e);
+    const pt = s2w(p.x, p.y);
+    if (!pt) return;
+    isDrawing = true;
+    rawPts=[pt]; smoothPts=[pt]; velHistory=[0]; lazyPos=pt.clone();
+    updPrev(smoothPts);
+  }
+}
+
+function startOrbit(e) {
+  const p=ppos(e);
+  cam.active=true; cam.sx=p.x; cam.sy=p.y; cam.st=cam.theta; cam.sp=cam.phi;
+}
+function startPan(e) {
+  const p = ppos(e);
+  cam.panActive = true;
+  cam.psx = p.x; cam.psy = p.y;
+  cam.pst.copy(cam.target);
+  // Record world point under pointer without touching camera matrices
+  cam.panAnchor = panUnproject(p.x, p.y);
+  cam.panTargetAtStart.copy(cam.target);
+}
+
+// Unproject screen point onto plane through cam.target facing camera.
+// Uses camera matrices directly — no updateMatrixWorld() side-effects.
+function panUnproject(sx, sy) {
+  const r = renderer.domElement.getBoundingClientRect();
+  const ndcX =  (sx / r.width)  * 2 - 1;
+  const ndcY = -(sy / r.height) * 2 + 1;
+  const ac = activeCam();
+  // Read existing projection matrix (don't update it)
+  const origin = new THREE.Vector3();
+  const dir    = new THREE.Vector3(ndcX, ndcY, 0.5);
+  origin.setFromMatrixPosition(ac.matrixWorld);
+  dir.unproject(ac).sub(origin).normalize();
+  // Intersect with plane through cam.target, normal = view direction
+  const fwd = new THREE.Vector3().subVectors(cam.target, origin).normalize();
+  const denom = fwd.dot(dir);
+  if (Math.abs(denom) < 1e-6) return cam.target.clone();
+  const t = fwd.dot(new THREE.Vector3().subVectors(cam.target, origin)) / denom;
+  return origin.clone().addScaledVector(dir, t);
+}
+
+function onMove(e) {
+  e.preventDefault();
+  const p = ppos(e);
+
+  // ── Two-finger: pinch zoom + orbit
+  if (e.touches && e.touches.length >= 2) {
+    const d = pinchD(e);
+    if (lastPD !== null) {
+      if(useOrtho){orthoZoom=Math.max(1,Math.min(50,orthoZoom+(lastPD-d)*0.04));syncOrtho();}
+      else{cam.radius=Math.max(1,Math.min(40,cam.radius+(lastPD-d)*0.04));updCam();}
+    }
+    lastPD = d;
+    if (cam.active) {
+      const cx=(e.touches[0].clientX+e.touches[1].clientX)/2;
+      const cy=(e.touches[0].clientY+e.touches[1].clientY)/2;
+      cam.theta = cam.st + (cx-cam.sx)*0.013;
+      cam.phi   = Math.max(0.05,Math.min(Math.PI-0.05,cam.sp-(cy-cam.sy)*0.013));
+      updCam();
+    }
+    return;
+  }
+
+  // ── Hover glow when idle in draw mode
+  if (mode==='draw' && !isDrawing && !cam.active && !cam.panActive) {
+    setSurfHover(checkHover(p.x, p.y));
+  }
+
+  // ── Camera moves take priority over draw only when cam is explicitly active
+  if (cam.panActive) { doPan(e); return; }
+  if (cam.active)    { doOrbit(e); return; }
+
+  // ── Erase drag
+  if (mode==='erase' && e.buttons) { tryErase(p.x, p.y); return; }
+
+  // ── Draw stroke point
+  if (isDrawing && mode==='draw') {
+    const raw = s2w(p.x, p.y);
+    if (!raw) return;
+    if (!lazyPos) lazyPos = raw.clone();
+    lazyPos.lerp(raw, LAZY);
+    const last = smoothPts[smoothPts.length-1];
+    if (last && lazyPos.distanceTo(last) > 0.009) {
+      smoothPts.push(lazyPos.clone());
+      rawPts.push(raw.clone());
+      velHistory.push(lazyPos.distanceTo(last));
+      updPrev(smoothPts);
+    }
+  }
+}
+
+function doOrbit(e) {
+  const p=ppos(e);
+  cam.theta = cam.st + (p.x-cam.sx)*0.013;
+  cam.phi   = Math.max(0.05, Math.min(Math.PI-0.05, cam.sp-(p.y-cam.sy)*0.013));
+  updCam();
+  renderer.render(scene, activeCam());
+}
+function doPan(e) {
+  const p = ppos(e);
+  if (!cam.panAnchor) return;
+  const cur = panUnproject(p.x, p.y);
+  cam.target.copy(cam.panTargetAtStart)
+    .addScaledVector(new THREE.Vector3().subVectors(cam.panAnchor, cur), 1);
+  updCam();
+  // Render immediately — prevents stale frame ghosting between RAF ticks
+  renderer.render(scene, activeCam());
+}
+
+function onUp(e) {
+  // Always reset camera gesture state first
+  const wasOrbit  = cam.active;
+  const wasPan    = cam.panActive;
+  const wasDraw   = isDrawing;
+  resetGestureState();
+
+  // Only finalize stroke if we were genuinely drawing (not interrupted by orbit)
+  if (wasDraw && !wasOrbit && !wasPan) {
+    isDrawing = false;
+    finStroke();
+  } else if (wasDraw) {
+    // Orbit/pan interrupted the draw — just cancel cleanly
+    isDrawing = false;
+    rawPts=[]; smoothPts=[]; velHistory=[]; lazyPos=null;
+    if (prevLine) { scene.remove(prevLine); prevLine=null; }
+  }
+}
+
+function pinchD(e) {
+  return Math.hypot(
+    e.touches[0].clientX - e.touches[1].clientX,
+    e.touches[0].clientY - e.touches[1].clientY
+  );
+}
+
+renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
+// Suppress synthetic mouse events that fire after touch on Android
+let lastTouchTime = 0;
+function isSyntheticMouse() { return Date.now() - lastTouchTime < 500; }
+renderer.domElement.addEventListener('mousedown', e=>{ if(!isSyntheticMouse()) onDown(e); });
+renderer.domElement.addEventListener('mousemove', e=>{ if(!isSyntheticMouse()) onMove(e); });
+renderer.domElement.addEventListener('mouseup',   e=>{ if(!isSyntheticMouse()) onUp(e);   });
+renderer.domElement.addEventListener('mouseleave',()=>{ if(!isSyntheticMouse()) setSurfHover(false); });
+renderer.domElement.addEventListener('touchstart', e=>{ lastTouchTime=Date.now(); onDown(e); },{passive:false});
+renderer.domElement.addEventListener('touchmove',  e=>{ lastTouchTime=Date.now(); onMove(e); },{passive:false});
+renderer.domElement.addEventListener('touchend',   e=>{ lastTouchTime=Date.now(); onUp(e);   });
+renderer.domElement.addEventListener('wheel',e=>{
+  if(useOrtho){
+    orthoZoom=Math.max(1,Math.min(50,orthoZoom+e.deltaY*0.025));
+    syncOrtho();
+  } else {
+    cam.radius=Math.max(1,Math.min(40,cam.radius+e.deltaY*0.02));
+    updCam();
+  }
+},{passive:true});
+
+// ================================================================
+//  MODE
+// ================================================================
+const STXT={
+  draw:'DRAW (D) · drag surface · F=marker · two-finger orbit',
+  erase:'ERASE (E) · click/drag strokes to remove',
+  orbit:'ORBIT (O) · drag to rotate · scroll zoom',
+  pan:'PAN (P) · drag to pan · two-finger orbit',
+};
+function setMode(m){
+  mode=m;
+  // Update both topbar and side strip
+  ['draw','erase','orbit','pan'].forEach(id=>{
+    const b=document.getElementById('b'+id); if(b)b.classList.toggle('on',m===id);
+    const s=document.getElementById('s'+id); if(s)s.classList.toggle('on',m===id);
+  });
+  const dots={draw:'#1a1a2e',erase:'#c0392b',orbit:'#e67e22',pan:'#2a9d8f'};
+  document.getElementById('mdot').style.background=dots[m]||'#1a1a2e';
+  document.getElementById('stxt').textContent=STXT[m]||'';
+  document.body.classList.toggle('erasing',m==='erase');
+  renderer.domElement.style.cursor=m==='draw'?'crosshair':m==='pan'?'grab':'default';
+}
+
+// ================================================================
+//  SAVE / LOAD / EXPORT
+// ================================================================
+function sceneData(){
+  return{version:3,
+    strokes:strokes.map(s=>({pts:s.pts.map(p=>({x:p.x,y:p.y,z:p.z})),color:s.color,sz:s.sz,op:s.op,flat:s.flat})),
+    surf:{type:surfType,plane:curPlane,px:surfPos.x,py:surfPos.y,pz:surfPos.z,rx:surfEuler.x,ry:surfEuler.y,rz:surfEuler.z,sc:surfScale,sax:surfScaleAxes.x,say:surfScaleAxes.y,saz:surfScaleAxes.z}
+  };
+}
+function loadData(data){
+  clearAll();
+  if(data.surf){
+    surfType=data.surf.type||'plane'; curPlane=data.surf.plane||'xy';
+    surfPos.set(data.surf.px||0,data.surf.py||0,data.surf.pz||0);
+    surfEuler.set(data.surf.rx||0,data.surf.ry||0,data.surf.rz||0);
+    surfScale=data.surf.sc||1;
+    surfScaleAxes.set(data.surf.sax||1,data.surf.say||1,data.surf.saz||1);
+    buildSurf();
+    document.querySelectorAll('.sft').forEach(b=>b.classList.toggle('on',b.dataset.surf===surfType));
+    document.querySelectorAll('.pp').forEach(b=>b.classList.toggle('on',b.dataset.plane===curPlane));
+  }
+  if(data.strokes){
+    data.strokes.forEach(s=>{
+      const pts=s.pts.map(p=>new THREE.Vector3(p.x,p.y,p.z));
+      const vels=computeVels(pts);
+      const g=new THREE.Group();
+      const tube=buildTube(pts,vels,s.color,s.sz,s.op,s.flat||false);
+      if(tube)g.add(tube);
+      g.add(buildCap(pts[0],s.color,s.sz,s.op));
+      if(pts.length>1)g.add(buildCap(pts[pts.length-1],s.color,s.sz,s.op));
+      if(fillEnabled&&pts.length>=8&&pts[0].distanceTo(pts[pts.length-1])<0.4){const f=buildFill(pts,s.color,s.op);if(f)g.add(f);}
+      scene.add(g);
+      strokes.push({pts,vels,color:s.color,sz:s.sz,op:s.op,flat:s.flat||false,mesh:g});
+    });
+  }
+}
+function saveFile(){
+  const b=new Blob([JSON.stringify(sceneData(),null,2)],{type:'application/json'});
+  const u=URL.createObjectURL(b);const a=document.createElement('a');
+  a.href=u;a.download='sketch3d.json';a.click();URL.revokeObjectURL(u);
+}
+function loadFile(){document.getElementById('filein').click();}
+document.getElementById('filein').addEventListener('change',function(){
+  const f=this.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{try{loadData(JSON.parse(ev.target.result));}catch(e){alert('Invalid file.');}};
+  r.readAsText(f);this.value='';
+});
+setInterval(()=>{try{localStorage.setItem('sk3d_auto',JSON.stringify(sceneData()));}catch(e){}},30000);
+
+// ── glTF export
+function expGLTF(){
+  const meshes=[];
+  strokes.forEach(s=>{
+    if(s.pts.length<2)return;
+    try{
+      const geo=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(s.pts),Math.max(s.pts.length*3,8),s.sz*0.011,6,false);
+      const c=new THREE.Color(s.color);meshes.push({geo,col:[c.r,c.g,c.b],op:s.op});
+    }catch(e){}
+  });
+  if(!meshes.length){alert('Nothing to export.');return;}
+  const bvs=[],accs=[],mds=[],mts=[],cks=[];let bo=0;
+  meshes.forEach((m,mi)=>{
+    const pos=m.geo.attributes.position,idx=m.geo.index;
+    const pb=new Float32Array(pos.array),ib=idx?new Uint32Array(idx.array):null;
+    bvs.push({buffer:0,byteOffset:bo,byteLength:pb.byteLength,target:34962});
+    let mn=[Infinity,Infinity,Infinity],mx=[-Infinity,-Infinity,-Infinity];
+    for(let i=0;i<pos.array.length;i+=3){mn[0]=Math.min(mn[0],pos.array[i]);mn[1]=Math.min(mn[1],pos.array[i+1]);mn[2]=Math.min(mn[2],pos.array[i+2]);mx[0]=Math.max(mx[0],pos.array[i]);mx[1]=Math.max(mx[1],pos.array[i+1]);mx[2]=Math.max(mx[2],pos.array[i+2]);}
+    accs.push({bufferView:bvs.length-1,componentType:5126,count:pos.count,type:'VEC3',min:mn,max:mx});
+    cks.push(new Uint8Array(pb.buffer));bo+=pb.byteLength;
+    let pr={attributes:{POSITION:accs.length-1},mode:4};
+    if(ib){bvs.push({buffer:0,byteOffset:bo,byteLength:ib.byteLength,target:34963});accs.push({bufferView:bvs.length-1,componentType:5125,count:idx.count,type:'SCALAR'});pr.indices=accs.length-1;cks.push(new Uint8Array(ib.buffer));bo+=ib.byteLength;}
+    pr.material=mi;mds.push({primitives:[pr]});
+    mts.push({pbrMetallicRoughness:{baseColorFactor:[m.col[0],m.col[1],m.col[2],m.op],metallicFactor:0.04,roughnessFactor:0.55},alphaMode:m.op<1?'BLEND':'OPAQUE'});
+  });
+  const nodes=mds.map((_,i)=>({mesh:i}));
+  const gltf={asset:{version:'2.0',generator:'Sketch3D'},scene:0,scenes:[{nodes:nodes.map((_,i)=>i)}],nodes,meshes:mds,materials:mts,accessors:accs,bufferViews:bvs,buffers:[{byteLength:bo}]};
+  const jb=new TextEncoder().encode(JSON.stringify(gltf));
+  const jl=jb.length,jp=(4-jl%4)%4;
+  const bin=new Uint8Array(bo);let off=0;cks.forEach(c=>{bin.set(c,off);off+=c.byteLength;});
+  const bl=bin.length,bp=(4-bl%4)%4,tot=12+8+(jl+jp)+8+(bl+bp);
+  const out=new ArrayBuffer(tot);const dv=new DataView(out);let p=0;
+  dv.setUint32(p,0x46546C67,true);p+=4;dv.setUint32(p,2,true);p+=4;dv.setUint32(p,tot,true);p+=4;
+  dv.setUint32(p,jl+jp,true);p+=4;dv.setUint32(p,0x4E4F534A,true);p+=4;
+  new Uint8Array(out,p).set(jb);for(let i=0;i<jp;i++)new Uint8Array(out)[p+jl+i]=0x20;p+=jl+jp;
+  dv.setUint32(p,bl+bp,true);p+=4;dv.setUint32(p,0x004E4942,true);p+=4;new Uint8Array(out,p).set(bin);
+  const blob=new Blob([out],{type:'model/gltf-binary'});const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='sketch3d.glb';a.click();URL.revokeObjectURL(url);
+}
+function expOBJ(){
+  if(!strokes.length){alert('Nothing to export.');return;}
+  const lines=['# Sketch3D',''];let vo=1;
+  strokes.forEach((s,si)=>{
+    if(s.pts.length<2)return;
+    let geo;try{geo=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(s.pts),Math.max(s.pts.length*3,8),s.sz*0.011,6,false);}catch(e){return;}
+    const pa=geo.attributes.position,ix=geo.index;
+    lines.push(`g stroke_${si}`);
+    for(let i=0;i<pa.count;i++)lines.push(`v ${pa.getX(i).toFixed(5)} ${pa.getY(i).toFixed(5)} ${pa.getZ(i).toFixed(5)}`);
+    if(ix)for(let i=0;i<ix.count;i+=3)lines.push(`f ${ix.getX(i)+vo} ${ix.getX(i+1)+vo} ${ix.getX(i+2)+vo}`);
+    vo+=pa.count;lines.push('');geo.dispose();
+  });
+  const blob=new Blob([lines.join('\n')],{type:'text/plain'});const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='sketch3d.obj';a.click();URL.revokeObjectURL(url);
+}
+
+// ================================================================
+//  USD / USDZ EXPORT
+// ================================================================
+function buildUSDA() {
+  // Generate ASCII USD (USDA) representing all strokes as meshes
+  const lines = [];
+  lines.push('#usda 1.0');
+  lines.push('(');
+  lines.push('    defaultPrim = "Sketch3D"');
+  lines.push('    upAxis = "Z"');
+  lines.push('    metersPerUnit = 0.01');
+  lines.push(')');
+  lines.push('');
+  lines.push('def Xform "Sketch3D" {');
+
+  strokes.forEach((s, si) => {
+    if (s.pts.length < 2) return;
+    let geo;
+    try {
+      geo = new THREE.TubeGeometry(
+        new THREE.CatmullRomCurve3(s.pts),
+        Math.max(s.pts.length * 3, 8), s.sz * 0.011, 6, false
+      );
+    } catch(e) { return; }
+
+    const pa = geo.attributes.position;
+    const ix = geo.index;
+    const col = new THREE.Color(s.color);
+
+    // Collect points
+    const pts = [];
+    for (let i = 0; i < pa.count; i++) {
+      pts.push(`(${pa.getX(i).toFixed(4)}, ${pa.getY(i).toFixed(4)}, ${pa.getZ(i).toFixed(4)})`);
+    }
+    // Collect face vertex counts and indices
+    const counts = [], indices = [];
+    if (ix) {
+      for (let i = 0; i < ix.count; i += 3) {
+        counts.push(3);
+        indices.push(ix.getX(i), ix.getX(i+1), ix.getX(i+2));
+      }
+    }
+
+    lines.push(`    def Mesh "stroke_${si}" {`);
+    lines.push(`        point3f[] points = [${pts.join(', ')}]`);
+    if (counts.length) {
+      lines.push(`        int[] faceVertexCounts = [${counts.join(', ')}]`);
+      lines.push(`        int[] faceVertexIndices = [${indices.join(', ')}]`);
+    }
+    lines.push(`        color3f[] primvars:displayColor = [(${col.r.toFixed(3)}, ${col.g.toFixed(3)}, ${col.b.toFixed(3)})]`);
+    lines.push(`        float primvars:displayOpacity = ${s.op.toFixed(3)}`);
+    lines.push(`        uniform token subdivisionScheme = "none"`);
+    lines.push('    }');
+    geo.dispose();
+  });
+
+  lines.push('}');
+  return lines.join('\n');
+}
+
+function expUSD() {
+  if (!strokes.length) { alert('Nothing to export.'); return; }
+  const usda = buildUSDA();
+  const blob = new Blob([usda], { type: 'model/vnd.usda' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'sketch3d.usda'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function expUSDZ() {
+  // USDZ = uncompressed ZIP containing a .usda file
+  // We build the ZIP manually (no library needed for single-file uncompressed)
+  if (!strokes.length) { alert('Nothing to export.'); return; }
+  const usda = buildUSDA();
+  const enc  = new TextEncoder();
+  const data = enc.encode(usda);
+  const name = enc.encode('sketch3d.usda');
+
+  // ZIP local file header
+  function u16(n){ const b=new Uint8Array(2); new DataView(b.buffer).setUint16(0,n,true); return b; }
+  function u32(n){ const b=new Uint8Array(4); new DataView(b.buffer).setUint32(0,n,true); return b; }
+
+  // CRC-32
+  function crc32(buf) {
+    let c = 0xFFFFFFFF;
+    const t = new Uint32Array(256);
+    for (let i=0;i<256;i++){let v=i;for(let j=0;j<8;j++)v=v&1?(0xEDB88320^(v>>>1)):(v>>>1);t[i]=v;}
+    for (let i=0;i<buf.length;i++) c=t[(c^buf[i])&0xFF]^(c>>>8);
+    return (c^0xFFFFFFFF)>>>0;
+  }
+
+  const crc    = crc32(data);
+  const offset = 0; // local header starts at byte 0
+
+  // Local file header (30 + name length)
+  const lhdr = new Uint8Array([
+    0x50,0x4B,0x03,0x04,  // signature
+    20,0,                  // version needed
+    0,0,                   // flags
+    0,0,                   // compression (store)
+    0,0, 0,0,             // mod time, mod date
+    ...u32(crc),
+    ...u32(data.length),
+    ...u32(data.length),
+    ...u16(name.length),
+    0,0,                   // extra field length
+    ...name,
+  ]);
+
+  // Central directory header
+  const cdhdr = new Uint8Array([
+    0x50,0x4B,0x01,0x02,  // signature
+    20,0,                  // version made by
+    20,0,                  // version needed
+    0,0, 0,0, 0,0,        // flags, compression, mod time
+    0,0,                   // mod date
+    ...u32(crc),
+    ...u32(data.length),
+    ...u32(data.length),
+    ...u16(name.length),
+    0,0, 0,0, 0,0,        // extra, comment, disk start
+    0,0,                   // internal attr
+    0,0,0,0,              // external attr
+    ...u32(offset),
+    ...name,
+  ]);
+
+  // End of central directory
+  const cdOffset = lhdr.length + data.length;
+  const eocd = new Uint8Array([
+    0x50,0x4B,0x05,0x06,  // signature
+    0,0, 0,0,             // disk numbers
+    1,0, 1,0,            // entries on disk / total
+    ...u32(cdhdr.length),
+    ...u32(cdOffset),
+    0,0,                   // comment length
+  ]);
+
+  const total = new Uint8Array(lhdr.length + data.length + cdhdr.length + eocd.length);
+  let off = 0;
+  [lhdr, data, cdhdr, eocd].forEach(b => { total.set(b, off); off += b.length; });
+
+  const blob = new Blob([total], { type: 'model/vnd.usdz+zip' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'sketch3d.usdz'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ================================================================
+//  2D CANVAS GIZMO — all handles visible simultaneously
+//  Arrows (move) + Arcs (rotate) + Boxes (scale) in one view
+//  Camera-aligned. Large hit areas for touch.
+// ================================================================
+(function(){
+  const gc = document.getElementById('gc');
+  const ctx = gc.getContext('2d');
+  const W=gc.width, H=gc.height, CX=W/2, CY=H/2;
+
+  // Color per axis
+  const COL = { x:'#e03040', y:'#22bb55', z:'#3377ee' };
+  const AL  = 58;  // arrow length px
+  const AR  = 22;  // arc radius px
+  const HIT_MOUSE = 14; // hit radius desktop
+  const HIT_TOUCH = 26; // hit radius touch
+
+  let drag     = null;   // active drag state
+  let hov      = null;   // hovered handle id e.g. 'ax','ry','sz','su'
+  let lastWasTouch = false;
+  let gizmoMode  = 'move'; // 'move' | 'rotate' | 'scale'
+  let axisFilter = 'all';  // 'all' | 'x' | 'y' | 'z'
+
+  // Wire mode buttons (both main and portrait versions)
+  function setGizmoMode(m) {
+    gizmoMode = m;
+    ['move','rotate','scale'].forEach(id=>{
+      const b=document.getElementById('gm-'+id);   if(b) b.classList.toggle('on',id===m);
+      const p=document.getElementById('pb-gm-'+id);if(p) p.classList.toggle('on',id===m);
+    });
+    const hints={move:'drag arrows to move',rotate:'drag arcs to rotate',scale:'drag boxes to scale'};
+    const h=document.getElementById('ghint');if(h)h.textContent=hints[m]||'';
+    draw();
+  }
+  function setAxisFilter(a) {
+    axisFilter = a;
+    ['all','x','y','z'].forEach(id=>{
+      const b=document.getElementById('ga-'+id);   if(b) b.classList.toggle('on',id===a);
+      const p=document.getElementById('pb-ax-'+id);if(p) p.classList.toggle('on',id===a);
+    });
+    draw();
+  }
+  ['move','rotate','scale'].forEach(m=>{
+    const b=document.getElementById('gm-'+m);
+    if(b) b.addEventListener('click',()=>setGizmoMode(m));
+    const p=document.getElementById('pb-gm-'+m);
+    if(p) p.addEventListener('click',()=>setGizmoMode(m));
+  });
+  ['all','x','y','z'].forEach(a=>{
+    const b=document.getElementById('ga-'+a);
+    if(b) b.addEventListener('click',()=>setAxisFilter(a));
+    const p=document.getElementById('pb-ax-'+a);
+    if(p) p.addEventListener('click',()=>setAxisFilter(a));
+  });
+
+  // ── Snap state ─────────────────────────────────────────────────
+  let snapEnabled = true;           // toggled by button / S key
+  const SNAP_STEP = Math.PI/4;      // 45° increments
+  const SNAP_THRESH = Math.PI/16;   // 11.25° snap zone per notch
+  let snapFlash = null;             // {ax, angle} — lights up briefly on snap
+
+  function snapAngle(raw) {
+    // Round to nearest 45° if within threshold
+    const snapped = Math.round(raw / SNAP_STEP) * SNAP_STEP;
+    return Math.abs(raw - snapped) < SNAP_THRESH ? snapped : raw;
+  }
+  function isSnapped(raw) {
+    return Math.abs(raw - Math.round(raw/SNAP_STEP)*SNAP_STEP) < SNAP_THRESH;
+  }
+
+  // ── Camera-aligned axis projection ──────────────────────────────
+  // Projects world X/Y/Z into canvas coords using actual camera matrix.
+  // Returns unit direction {nx,ny} for each axis in canvas space.
+  function axisDir2D(worldAxis) {
+    const ac = activeCam();
+    const o  = new THREE.Vector3(0,0,0).project(ac);
+    const t  = worldAxis.clone().normalize().project(ac);
+    const dx = t.x - o.x, dy = -(t.y - o.y); // flip Y
+    const len = Math.sqrt(dx*dx+dy*dy) || 1;
+    return { nx: dx/len, ny: dy/len };
+  }
+
+  const WORLD = { x: new THREE.Vector3(1,0,0), y: new THREE.Vector3(0,1,0), z: new THREE.Vector3(0,0,1) };
+
+  function aDir(ax) { return axisDir2D(WORLD[ax]); }
+  function aTip(ax) { const d=aDir(ax); return { x:CX+d.nx*AL, y:CY+d.ny*AL }; }
+
+  // Ring radii for each axis (concentric, centred on gizmo origin)
+  const RING_R = { x: AL*0.52, y: AL*0.72, z: AL*0.90 };
+
+  // Returns the two 2D axes that form the rotation plane for each axis
+  // Rotating around X = in YZ plane = project Y and Z world axes to 2D
+  function ringAxes(ax) {
+    const pairs = { x: ['y','z'], y: ['x','z'], z: ['x','y'] };
+    const [a, b] = pairs[ax];
+    return { da: aDir(a), db: aDir(b) };
+  }
+
+  // arcCen kept for applyDrag compatibility — returns gizmo centre
+  function arcCen(ax) { return { cx: CX, cy: CY }; }
+
+  // Scale box position: 75% along the arrow
+  function boxPos(ax) {
+    const d=aDir(ax);
+    return { x:CX+d.nx*AL*0.72, y:CY+d.ny*AL*0.72 };
+  }
+
+  // ── Drawing ─────────────────────────────────────────────────────
+  function drawAxisShaft(ax, alpha) {
+    const d=aDir(ax), col=COL[ax];
+    ctx.save();
+    ctx.strokeStyle=col; ctx.lineWidth=1.5; ctx.globalAlpha=alpha*0.4; ctx.lineCap='round';
+    ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(CX,CY); ctx.lineTo(CX+d.nx*AL*1.1, CY+d.ny*AL*1.1); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  function drawArrow(ax, active) {
+    const d=aDir(ax), e=aTip(ax), col=COL[ax];
+    const hlit = hov==='a'+ax || active;
+    ctx.save();
+    ctx.strokeStyle=hlit?'#111':col; ctx.fillStyle=hlit?'#111':col;
+    ctx.lineWidth=hlit?3:2; ctx.globalAlpha=hlit?1:0.82; ctx.lineCap='round';
+    // shaft
+    ctx.beginPath(); ctx.moveTo(CX+d.nx*10,CY+d.ny*10); ctx.lineTo(e.x-d.nx*11,e.y-d.ny*11); ctx.stroke();
+    // head
+    const px=-d.ny*5, py=d.nx*5;
+    ctx.beginPath();
+    ctx.moveTo(e.x,e.y);
+    ctx.lineTo(e.x-d.nx*11+px,e.y-d.ny*11+py);
+    ctx.lineTo(e.x-d.nx*11-px,e.y-d.ny*11-py);
+    ctx.closePath(); ctx.fill();
+    // label
+    ctx.font='bold 8px DM Mono,monospace';
+    ctx.fillStyle=hlit?'#111':col; ctx.globalAlpha=0.9;
+    ctx.fillText(ax.toUpperCase(), e.x+d.nx*6, e.y+d.ny*6+3);
+    // highlight glow
+    if(hlit){
+      ctx.globalAlpha=0.15; ctx.fillStyle=col;
+      ctx.beginPath(); ctx.arc(e.x,e.y,14,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawArc(ax, active) {
+    const col = COL[ax];
+    const hlit = hov==='r'+ax || active;
+    const R = RING_R[ax];
+    const { da, db } = ringAxes(ax);
+
+    ctx.save();
+    ctx.strokeStyle = hlit ? '#222' : col;
+    ctx.lineWidth   = hlit ? 3.5 : 2.5;
+    ctx.lineCap     = 'round';
+
+    // Back half — faint, drawn as full circle first at low alpha
+    ctx.globalAlpha = hlit ? 0.22 : 0.13;
+    ctx.beginPath();
+    const STEPS = 48;
+    for (let i = 0; i <= STEPS; i++) {
+      const t = (i / STEPS) * Math.PI * 2;
+      const px = CX + da.nx * Math.cos(t) * R + db.nx * Math.sin(t) * R;
+      const py = CY + da.ny * Math.cos(t) * R + db.ny * Math.sin(t) * R;
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Front half — solid arc from t=0 to t=PI
+    ctx.globalAlpha = hlit ? 1 : 0.78;
+    ctx.beginPath();
+    let first = true;
+    for (let i = 0; i <= STEPS/2; i++) {
+      const t = (i / (STEPS/2)) * Math.PI;
+      const px = CX + da.nx * Math.cos(t) * R + db.nx * Math.sin(t) * R;
+      const py = CY + da.ny * Math.cos(t) * R + db.ny * Math.sin(t) * R;
+      first ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      first = false;
+    }
+    ctx.stroke();
+
+    // Arrow tip at end of front arc (t=PI)
+    const tx = CX + da.nx * Math.cos(Math.PI) * R + db.nx * Math.sin(Math.PI) * R;
+    const ty = CY + da.ny * Math.cos(Math.PI) * R + db.ny * Math.sin(Math.PI) * R;
+    const tdx = -da.nx * Math.sin(Math.PI) * R + db.nx * Math.cos(Math.PI) * R;
+    const tdy = -da.ny * Math.sin(Math.PI) * R + db.ny * Math.cos(Math.PI) * R;
+    const tlen = Math.hypot(tdx, tdy) || 1;
+    const tn = {nx: tdx/tlen, ny: tdy/tlen};
+    const perp = {nx: -tn.ny, ny: tn.nx};
+    ctx.globalAlpha = hlit ? 1 : 0.78;
+    ctx.fillStyle = hlit ? '#222' : col;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx - tn.nx*7 + perp.nx*4, ty - tn.ny*7 + perp.ny*4);
+    ctx.lineTo(tx - tn.nx*7 - perp.nx*4, ty - tn.ny*7 - perp.ny*4);
+    ctx.closePath();
+    ctx.fill();
+
+    // Snap ticks at 45° on ring
+    if (snapEnabled && hlit) {
+      ctx.globalAlpha = 0.55; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+      for (let i = 0; i < 8; i++) {
+        const t = (i / 8) * Math.PI * 2;
+        const px = CX + da.nx * Math.cos(t) * R + db.nx * Math.sin(t) * R;
+        const py = CY + da.ny * Math.cos(t) * R + db.ny * Math.sin(t) * R;
+        const pxi = CX + da.nx * Math.cos(t) * R*0.87 + db.nx * Math.sin(t) * R*0.87;
+        const pyi = CY + da.ny * Math.cos(t) * R*0.87 + db.ny * Math.sin(t) * R*0.87;
+        ctx.beginPath(); ctx.moveTo(pxi, pyi); ctx.lineTo(px, py); ctx.stroke();
+      }
+    }
+
+    // Snap flash
+    if (snapFlash && snapFlash.ax === ax && performance.now() - snapFlash.t < 300) {
+      const age = (performance.now() - snapFlash.t) / 300;
+      ctx.globalAlpha = (1 - age) * 0.7;
+      ctx.strokeStyle = '#ffcc00'; ctx.lineWidth = 4;
+      ctx.beginPath();
+      for (let i = 0; i <= STEPS; i++) {
+        const t = (i / STEPS) * Math.PI * 2;
+        const px = CX + da.nx * Math.cos(t) * R + db.nx * Math.sin(t) * R;
+        const py = CY + da.ny * Math.cos(t) * R + db.ny * Math.sin(t) * R;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+
+    // Hover glow
+    if (hlit) {
+      ctx.globalAlpha = 0.09; ctx.fillStyle = col;
+      ctx.beginPath();
+      for (let i = 0; i <= STEPS; i++) {
+        const t = (i / STEPS) * Math.PI * 2;
+        const px = CX + da.nx * Math.cos(t) * (R+8) + db.nx * Math.sin(t) * (R+8);
+        const py = CY + da.ny * Math.cos(t) * (R+8) + db.ny * Math.sin(t) * (R+8);
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  function drawBox(ax, active) {
+    const b=boxPos(ax), col=COL[ax];
+    const hlit = hov==='s'+ax || active;
+    const S=hlit?9:7;
+    ctx.save();
+    ctx.strokeStyle=hlit?'#111':col;
+    ctx.fillStyle=hlit?`${col}33`:`${col}18`;
+    ctx.lineWidth=hlit?2.2:1.6; ctx.globalAlpha=hlit?1:0.82;
+    ctx.beginPath(); ctx.rect(b.x-S/2,b.y-S/2,S,S); ctx.stroke(); ctx.fill();
+    if(hlit){
+      ctx.globalAlpha=0.15; ctx.fillStyle=col;
+      ctx.beginPath(); ctx.arc(b.x,b.y,12,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawUniformDot(active) {
+    const hlit = hov==='su' || active;
+    ctx.save();
+    ctx.strokeStyle=hlit?'#333':'rgba(26,26,46,.45)';
+    ctx.lineWidth=hlit?2.2:1.5; ctx.globalAlpha=hlit?1:0.6;
+    ctx.beginPath(); ctx.arc(CX,CY,8,0,Math.PI*2); ctx.stroke();
+    if(hlit){ ctx.fillStyle='rgba(26,26,46,.12)'; ctx.fill(); }
+    // crosshair
+    ctx.globalAlpha=(hlit?0.5:0.25); ctx.strokeStyle='rgba(26,26,46,.6)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(CX-5,CY); ctx.lineTo(CX+5,CY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(CX,CY-5); ctx.lineTo(CX,CY+5); ctx.stroke();
+    ctx.restore();
+  }
+
+  function draw() {
+    ctx.clearRect(0,0,W,H);
+    const activeDrag = drag ? drag.h : null;
+    // Active axes — respect axisFilter
+    const axes = axisFilter==='all' ? ['x','y','z'] : [axisFilter];
+    // Faint axis shafts always
+    ['x','y','z'].forEach(ax=>drawAxisShaft(ax, axes.includes(ax)?1:0.3));
+    // Draw handles for active mode only, filtered by axis
+    axes.forEach(ax=>{
+      if(gizmoMode==='move'  || gizmoMode==='all') drawArrow(ax, activeDrag==='a'+ax);
+      if(gizmoMode==='rotate'|| gizmoMode==='all') drawArc(ax,   activeDrag==='r'+ax);
+      if(gizmoMode==='scale' || gizmoMode==='all') drawBox(ax,   activeDrag==='s'+ax);
+    });
+    // Inactive axes shown as faint shaft lines only
+    ['x','y','z'].forEach(ax=>{
+      if(!axes.includes(ax)) drawAxisShaft(ax, 0.4);
+    });
+    // Uniform scale dot only in scale mode
+    if(gizmoMode==='scale'||gizmoMode==='all') drawUniformDot(activeDrag==='su');
+
+    // Active axis highlight line during drag
+    if(activeDrag && activeDrag!=='su' && activeDrag.length===2){
+      const ax=activeDrag[1], d=aDir(ax);
+      ctx.save();
+      ctx.strokeStyle=COL[ax]; ctx.lineWidth=2; ctx.globalAlpha=0.35; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(CX-d.nx*W,CY-d.ny*W); ctx.lineTo(CX+d.nx*W,CY+d.ny*W);
+      ctx.stroke(); ctx.restore();
+    }
+  }
+
+  // ── Hit test — respects gizmoMode and axisFilter ────────────────
+  function hitTest(mx, my, isTouch) {
+    const R = isTouch ? HIT_TOUCH : HIT_MOUSE;
+    const axes = axisFilter==='all' ? ['x','y','z'] : [axisFilter];
+    const doMove   = gizmoMode==='move';
+    const doRotate = gizmoMode==='rotate';
+    const doScale  = gizmoMode==='scale';
+
+    // 1. Arrow heads (move)
+    if(doMove) for (const ax of axes) {
+      const d=aDir(ax);
+      const t=(mx-CX)*d.nx+(my-CY)*d.ny;
+      if(t < 8 || t > AL+R) continue;
+      const perp=Math.abs((mx-CX)*(-d.ny)+(my-CY)*d.nx);
+      if(perp < R+4) return 'a'+ax;
+    }
+
+    // 2. Rings (rotate)
+    if (doRotate) {
+      let bestRing = null, bestDist = Infinity;
+      for (const ax of axisFilter==='all' ? ['x','y','z'] : [axisFilter]) {
+        const ringR = RING_R[ax];
+        const { da, db } = ringAxes(ax);
+        const lx = mx - CX, ly = my - CY;
+        const u = lx * da.nx + ly * da.ny;
+        const v = lx * db.nx + ly * db.ny;
+        const ang = Math.atan2(v, u);
+        const nearX = CX + da.nx * Math.cos(ang) * ringR + db.nx * Math.sin(ang) * ringR;
+        const nearY = CY + da.ny * Math.cos(ang) * ringR + db.ny * Math.sin(ang) * ringR;
+        const d = Math.hypot(mx - nearX, my - nearY);
+        if (d < bestDist) { bestDist = d; bestRing = ax; }
+      }
+      if (bestRing && bestDist < R + 6) return 'r' + bestRing;
+    }
+
+    // 3. Scale boxes
+    if(doScale) for (const ax of axes) {
+      const b=boxPos(ax);
+      if(Math.hypot(mx-b.x,my-b.y) < R+5) return 's'+ax;
+    }
+    // 4. Uniform scale dot
+    if(doScale && Math.hypot(mx-CX,my-CY) < R+5) return 'su';
+
+    return null;
+  }
+
+  function getPos(e){
+    const r=gc.getBoundingClientRect();
+    const src=e.touches&&e.touches.length>0?e.touches[0]:e.changedTouches&&e.changedTouches.length>0?e.changedTouches[0]:e;
+    return{x:src.clientX-r.left, y:src.clientY-r.top};
+  }
+
+  function applyDrag(p) {
+    if(!drag) return;
+    const dx=p.x-drag.sx, dy=p.y-drag.sy;
+    const h=drag.h;
+
+    if(h.startsWith('a')) {
+      // Move along axis
+      const ax=h[1], d=aDir(ax);
+      const proj=(dx*d.nx+dy*d.ny)*0.032;
+      surfPos.copy(drag.oPos);
+      if(ax==='x') surfPos.x += proj;
+      if(ax==='y') surfPos.y += proj;
+      if(ax==='z') surfPos.z += proj;
+      syncSurf();
+    } else if(h.startsWith('r')) {
+      // Rotate: drag tangentially around ring (pivot = gizmo centre)
+      const ax=h[1];
+      const a0=Math.atan2(drag.sy-CY, drag.sx-CX);
+      const a1=Math.atan2(p.y-CY,     p.x-CX);
+      let da=a1-a0;
+      surfEuler.copy(drag.oEuler);
+
+      // Compute the new raw angle for this axis
+      let rawAngle;
+      if(ax==='x') rawAngle = drag.oEuler.x + da;
+      if(ax==='y') rawAngle = drag.oEuler.y + da;
+      if(ax==='z') rawAngle = drag.oEuler.z + da;
+
+      // Apply snap if enabled (or Shift held on desktop)
+      const doSnap = snapEnabled || drag.shiftHeld;
+      const finalAngle = doSnap ? snapAngle(rawAngle) : rawAngle;
+      const didSnap = doSnap && isSnapped(rawAngle);
+
+      if(ax==='x') surfEuler.x = finalAngle;
+      if(ax==='y') surfEuler.y = finalAngle;
+      if(ax==='z') surfEuler.z = finalAngle;
+
+      // Flash on snap
+      if(didSnap){
+        snapFlash={ax, angle:finalAngle, t:performance.now()};
+      }
+
+      // Show current angle in hint
+      const deg = Math.round(THREE.MathUtils.radToDeg(finalAngle) % 360);
+      document.getElementById('ghint').textContent =
+        (didSnap ? '⊙ ' : '') + ax.toUpperCase() + ': ' + deg + '°' +
+        (doSnap ? '  [snapped]' : '');
+
+      syncSurf();
+    } else if(h.startsWith('s') && h!=='su') {
+      // Per-axis scale
+      const ax=h[1], d=aDir(ax);
+      const proj=(dx*d.nx+dy*d.ny)*0.022;
+      const sv=drag.oSA.clone();
+      if(ax==='x') sv.x=Math.max(0.05,sv.x+proj);
+      if(ax==='y') sv.y=Math.max(0.05,sv.y+proj);
+      if(ax==='z') sv.z=Math.max(0.05,sv.z+proj);
+      surfScaleAxes.copy(sv); syncSurf();
+    } else if(h==='su') {
+      // Uniform scale: drag up = bigger
+      surfScale=Math.max(0.05, drag.oSc - dy*0.01);
+      syncSurf();
+    }
+    draw();
+  }
+
+  // Mouse
+  gc.addEventListener('mousedown',e=>{
+    lastWasTouch=false;
+    const p=getPos(e), h=hitTest(p.x,p.y,false);
+    if(!h)return; e.stopPropagation();
+    drag={h,sx:p.x,sy:p.y,oPos:surfPos.clone(),oEuler:surfEuler.clone(),oSc:surfScale,oSA:surfScaleAxes.clone(),shiftHeld:e.shiftKey};
+    hov=h; draw();
+  });
+  // Update shiftHeld during drag
+  window.addEventListener('keydown',e=>{ if(drag&&e.key==='Shift') drag.shiftHeld=true; });
+  window.addEventListener('keyup',  e=>{ if(drag&&e.key==='Shift') drag.shiftHeld=false; });
+  gc.addEventListener('mousemove',e=>{
+    lastWasTouch=false;
+    const p=getPos(e);
+    if(!drag){
+      const h=hitTest(p.x,p.y,false);
+      if(h!==hov){hov=h; draw();}
+      // Update hint
+      const hints={ax:'drag → move X',ay:'drag → move Y',az:'drag → move Z',rx:'drag → rotate X',ry:'drag → rotate Y',rz:'drag → rotate Z',sx:'drag → scale X',sy:'drag → scale Y',sz:'drag → scale Z',su:'drag ↕ uniform scale'};
+      document.getElementById('ghint').textContent=h?(hints[h]||h):'move · rotate · scale';
+      return;
+    }
+    e.stopPropagation(); applyDrag(p);
+  });
+  gc.addEventListener('mouseup',  ()=>{ drag=null; draw(); });
+  gc.addEventListener('mouseleave',()=>{ if(!drag){hov=null; draw();} });
+
+  // Touch — larger hit radius + no accidental trigger
+  let touchTimer=null;
+  gc.addEventListener('touchstart',e=>{
+    e.preventDefault(); e.stopPropagation(); lastWasTouch=true;
+    const p=getPos(e), h=hitTest(p.x,p.y,true);
+    if(!h) return;
+    drag={h,sx:p.x,sy:p.y,oPos:surfPos.clone(),oEuler:surfEuler.clone(),oSc:surfScale,oSA:surfScaleAxes.clone()};
+    hov=h; draw();
+  },{passive:false});
+  gc.addEventListener('touchmove',e=>{
+    e.preventDefault(); e.stopPropagation();
+    if(drag) applyDrag(getPos(e));
+  },{passive:false});
+  gc.addEventListener('touchend',()=>{ drag=null; hov=null; draw(); });
+
+  // Scroll = uniform scale
+  gc.addEventListener('wheel',e=>{
+    e.preventDefault(); e.stopPropagation();
+    surfScale=Math.max(0.05,Math.min(10,surfScale-e.deltaY*0.0025));
+    syncSurf(); draw();
+  },{passive:false});
+
+  document.getElementById('greset').addEventListener('click',()=>{
+    surfPos.set(0,0,0); surfEuler.set(0,0,0); surfScale=1; surfScaleAxes.set(1,1,1);
+    syncSurf(); draw();
+  });
+
+  document.getElementById('gsnap').addEventListener('click',function(){
+    snapEnabled=!snapEnabled;
+    this.classList.toggle('on',snapEnabled);
+    document.getElementById('ghint').textContent=snapEnabled?'snap 45° ON':'snap OFF';
+    setTimeout(()=>document.getElementById('ghint').textContent='move · rotate · scale',1200);
+    draw();
+  });
+
+  // S key toggles snap when gizmo canvas is focused or always
+  window.addEventListener('keydown',ev=>{
+    if((ev.key==='s'||ev.key==='S')&&!ev.ctrlKey&&!ev.metaKey&&!ev.altKey){
+      // Only trigger if not typing in an input
+      if(document.activeElement.tagName==='INPUT')return;
+      document.getElementById('gsnap').click();
+    }
+  });
+
+  draw();
+  window._gDraw = draw;
+
+  // Mirror to portrait gizmo canvas pb-gc
+  // Trick: temporarily redirect ctx + W/H/CX/CY so all draw functions
+  // render into pb-gc at its native resolution, respecting gizmoMode + axisFilter
+  window._pbGcDraw = function() {
+    const pg = document.getElementById('pb-gc');
+    if (!pg) return;
+    const pgctx = pg.getContext('2d');
+    const pgW = pg.getBoundingClientRect().width  || pg.width;
+    const pgH = pg.getBoundingClientRect().height || pg.height;
+    // Set canvas pixel size to match CSS size (avoid blur)
+    if (pg.width !== Math.round(pgW) || pg.height !== Math.round(pgH)) {
+      pg.width  = Math.round(pgW);
+      pg.height = Math.round(pgH);
+    }
+    // Swap draw context + dimensions temporarily
+    const _ctx=ctx, _W=W, _H=H, _CX=CX, _CY=CY;
+    // Reassign the closed-over variables via the IIFE scope trick:
+    // We can't reassign const, so we render by scaling pgctx to match
+    // the main canvas coordinate space, then calling draw()
+    pgctx.clearRect(0,0,pg.width,pg.height);
+    pgctx.save();
+    // Scale so that [0..W] x [0..H] maps onto [0..pg.width] x [0..pg.height]
+    pgctx.scale(pg.width / W, pg.height / H);
+    // Now re-implement draw() using pgctx instead of ctx
+    const _drag = drag;
+    const activeDrag = _drag ? _drag.h : null;
+    const axes = axisFilter==='all' ? ['x','y','z'] : [axisFilter];
+
+    // Helper: draw to pgctx using same logic as draw() but with pgctx
+    function pDraw(fn) {
+      const saved = ctx;
+      // We cannot reassign ctx (it's a const in the outer IIFE scope)
+      // Instead we pass pgctx to a local version of each draw function
+      fn(pgctx, CX, CY);
+    }
+
+    // Full redraw using same draw functions — but ctx is closed over as const.
+    // Solution: render main gc to an ImageBitmap and draw scaled into pb-gc.
+    pgctx.restore();
+    pgctx.clearRect(0,0,pg.width,pg.height);
+
+    // Draw the main gc contents scaled into pb-gc
+    // gc is available in this scope (it's the main canvas)
+    try {
+      pgctx.drawImage(gc, 0, 0, pg.width, pg.height);
+    } catch(e) {}
+
+    // After drawing the image, trigger a fresh draw() on the main canvas
+    // so it stays in sync — draw() is called from updCam anyway
+    // The key insight: just call draw() first, then blit
+  };
+
+  // Better approach: call draw() then blit gc → pb-gc
+  window._pbGcDraw = function() {
+    const pg = document.getElementById('pb-gc');
+    if (!pg) return;
+    // First ensure main gizmo is up to date
+    draw();
+    // Then blit main gc into pb-gc scaled
+    const pgctx = pg.getContext('2d');
+    pgctx.clearRect(0,0,pg.width,pg.height);
+    pgctx.drawImage(gc, 0, 0, pg.width, pg.height);
+  };
+
+  // Make pb-gc interactive — forward to same applyDrag/hitTest as main gc
+  const pbGc = document.getElementById('pb-gc');
+  if (pbGc) {
+    let pbDrag = null;
+    function pbGetXY(e) {
+      const r = pbGc.getBoundingClientRect();
+      const src = e.touches && e.touches.length > 0 ? e.touches[0]
+                : e.changedTouches && e.changedTouches.length > 0 ? e.changedTouches[0]
+                : e;
+      // r.width/height = actual CSS rendered size (correct on all DPR)
+      // Map from CSS pixel pos within element → logical gizmo coords (0..W, 0..H)
+      const cx = (src.clientX - r.left) / r.width  * W;
+      const cy = (src.clientY - r.top)  / r.height * H;
+      return { x: cx, y: cy };
+    }
+    pbGc.addEventListener('mousedown', e=>{
+      e.preventDefault(); e.stopPropagation();
+      const p = pbGetXY(e);
+      const h = hitTest(p.x, p.y, false);
+      if (!h) return;
+      pbDrag = {h, sx:p.x, sy:p.y, oPos:surfPos.clone(), oEuler:surfEuler.clone(), oSc:surfScale, oSA:surfScaleAxes.clone(), shiftHeld:e.shiftKey};
+      hov = h; draw(); window._pbGcDraw&&window._pbGcDraw();
+    });
+    pbGc.addEventListener('mousemove', e=>{
+      e.preventDefault(); e.stopPropagation();
+      const p = pbGetXY(e);
+      if (!pbDrag) { const h=hitTest(p.x,p.y,false); if(h!==hov){hov=h;draw();window._pbGcDraw&&window._pbGcDraw();} return; }
+      drag = pbDrag; applyDrag(p); drag = null;
+      window._pbGcDraw&&window._pbGcDraw();
+    });
+    pbGc.addEventListener('mouseup', ()=>{ pbDrag=null; draw(); window._pbGcDraw&&window._pbGcDraw(); });
+    pbGc.addEventListener('touchstart', e=>{
+      e.preventDefault(); e.stopPropagation();
+      const p = pbGetXY(e);
+      const h = hitTest(p.x, p.y, true);
+      if (!h) return;
+      pbDrag = {h, sx:p.x, sy:p.y, oPos:surfPos.clone(), oEuler:surfEuler.clone(), oSc:surfScale, oSA:surfScaleAxes.clone(), shiftHeld:false};
+      hov = h; draw(); window._pbGcDraw&&window._pbGcDraw();
+    },{passive:false});
+    pbGc.addEventListener('touchmove', e=>{
+      e.preventDefault(); e.stopPropagation();
+      if (!pbDrag) return;
+      const p = pbGetXY(e);
+      drag = pbDrag; applyDrag(p); drag = null;
+      window._pbGcDraw&&window._pbGcDraw();
+    },{passive:false});
+    pbGc.addEventListener('touchend', e=>{
+      e.stopPropagation(); pbDrag=null; draw(); window._pbGcDraw&&window._pbGcDraw();
+    });
+  }
+})();
+
+
+// ================================================================
+//  UI BINDINGS
+// ================================================================
+document.getElementById('bdraw').addEventListener('click',()=>setMode('draw'));
+document.getElementById('berase').addEventListener('click',()=>setMode('erase'));
+// Side column tool strip mirrors topbar
+document.getElementById('sdraw').addEventListener('click',()=>setMode('draw'));
+document.getElementById('serase').addEventListener('click',()=>setMode('erase'));
+document.getElementById('sorbit').addEventListener('click',()=>setMode('orbit'));
+document.getElementById('span').addEventListener('click',()=>setMode('pan'));
+
+document.getElementById('bfill').addEventListener('click',function(){
+  fillEnabled=!fillEnabled;
+  this.classList.toggle('on',fillEnabled);
+  document.getElementById('stxt').textContent=fillEnabled?'LASSO FILL ON · close a stroke to fill':'LASSO FILL OFF';
+  setTimeout(()=>document.getElementById('stxt').textContent=STXT[mode],1400);
+});
+document.getElementById('bfillop').addEventListener('click',function(){
+  fillOpaque=!fillOpaque;
+  this.textContent=fillOpaque?'100%':'80%';
+  this.classList.toggle('on',fillOpaque);
+});
+document.getElementById('bsmooth').addEventListener('click',function(){
+  smoothingOn=!smoothingOn; LAZY=smoothingOn?LAZY_ON:LAZY_OFF;
+  this.classList.toggle('on',smoothingOn);
+  document.getElementById('stxt').textContent=smoothingOn?'SMOOTHING ON':'SMOOTHING OFF · raw tracking';
+  setTimeout(()=>document.getElementById('stxt').textContent=STXT[mode]||'',1500);
+});
+
+document.getElementById('bflat').addEventListener('click',function(){
+  flatBrush=!flatBrush;
+  this.classList.toggle('on',flatBrush);
+  document.getElementById('stxt').textContent=flatBrush?'MARKER BRUSH · wide flat strokes':STXT[mode];
+});
+
+document.getElementById('bundo').addEventListener('click',undo);
+document.getElementById('bredo').addEventListener('click',redo);
+document.getElementById('bclear').addEventListener('click',clearAll);
+
+document.getElementById('bsurf').addEventListener('click',function(){
+  surfGroup.visible=!surfGroup.visible;this.classList.toggle('on',surfGroup.visible);
+  document.getElementById('ssurf').classList.toggle('on',surfGroup.visible);
+});
+document.getElementById('ssurf').addEventListener('click',function(){
+  surfGroup.visible=!surfGroup.visible;this.classList.toggle('on',surfGroup.visible);
+  document.getElementById('bsurf').classList.toggle('on',surfGroup.visible);
+});
+document.getElementById('bgrid').addEventListener('click',function(){
+  gridH.visible=!gridH.visible;this.classList.toggle('on',gridH.visible);
+  document.getElementById('sgrid').classList.toggle('on',gridH.visible);
+});
+document.getElementById('sgrid').addEventListener('click',function(){
+  gridH.visible=!gridH.visible;this.classList.toggle('on',gridH.visible);
+  document.getElementById('bgrid').classList.toggle('on',gridH.visible);
+});
+function toggleAxis(on){
+  axisLinesOn=on; axisGroup.visible=on;
+  document.getElementById('baxis').classList.toggle('on',on);
+  document.getElementById('saxis').classList.toggle('on',on);
+}
+document.getElementById('baxis').addEventListener('click',()=>toggleAxis(!axisLinesOn));
+document.getElementById('saxis').addEventListener('click',()=>toggleAxis(!axisLinesOn));
+document.getElementById('sdepth').addEventListener('click',function(){
+  document.getElementById('bdepth').click();
+});
+document.getElementById('bdepth').addEventListener('click',function(){
+  depthCuesOn=!depthCuesOn;
+  this.classList.toggle('on',depthCuesOn);
+  // Reset all strokes to full opacity if off
+  if(!depthCuesOn) resetDepthColors();
+});
+// Side toggle — moves all left panels to right and vice versa
+let panelSide = 'left';
+document.getElementById('bside').addEventListener('click',function(){
+  panelSide = panelSide==='left'?'right':'left';
+  document.body.classList.toggle('right-side', panelSide==='right');
+  this.textContent = panelSide==='right' ? '◨ RIGHT' : '◧ LEFT';
+  // export menu position
+  const em=document.getElementById('expmenu');
+  em.style.left=panelSide==='right'?'auto':'10px';
+  em.style.right=panelSide==='right'?'10px':'auto';
+});
+
+// bgizmo removed — gizmo always in sidecol
+
+
+document.getElementById('spersp').addEventListener('click',function(){
+  document.getElementById('bpersp').click();
+  this.textContent = document.getElementById('bpersp').textContent;
+  this.classList.toggle('on', document.getElementById('bpersp').classList.contains('on'));
+});
+document.getElementById('bpersp').addEventListener('click',function(){
+  useOrtho=!useOrtho;
+  this.textContent=useOrtho?'ORTHO':'PERSP';
+  this.classList.toggle('on',useOrtho);
+  syncOrtho(); updCam();
+});
+
+document.getElementById('bsave').addEventListener('click',saveFile);
+document.getElementById('bload').addEventListener('click',loadFile);
+document.getElementById('bexp').addEventListener('click',function(e){
+  e.stopPropagation();document.getElementById('expmenu').classList.toggle('vis');
+});
+document.addEventListener('click',()=>document.getElementById('expmenu').classList.remove('vis'));
+document.getElementById('expmenu').addEventListener('click',e=>e.stopPropagation());
+document.getElementById('exgltf').addEventListener('click',()=>{document.getElementById('expmenu').classList.remove('vis');expGLTF();});
+document.getElementById('exobj').addEventListener('click',()=>{document.getElementById('expmenu').classList.remove('vis');expOBJ();});
+document.getElementById('exusd').addEventListener('click',()=>{document.getElementById('expmenu').classList.remove('vis');expUSD();});
+document.getElementById('exusdz').addEventListener('click',()=>{document.getElementById('expmenu').classList.remove('vis');expUSDZ();});
+document.getElementById('exjson').addEventListener('click',()=>{document.getElementById('expmenu').classList.remove('vis');saveFile();});
+
+// Plane preset buttons now live in gizmo HUD (#plane-row with class sft + data-plane)
+document.querySelectorAll('[data-plane]').forEach(b=>b.addEventListener('click',function(){
+  document.querySelectorAll('[data-plane]').forEach(x=>x.classList.remove('on'));
+  this.classList.add('on');curPlane=this.dataset.plane;
+  // Re-orient surface WITHOUT rebuilding geometry (preserves cube/sphere etc.)
+  // Update tint color then re-sync
+  if(surfFillMat){const t=PTINTS[curPlane]||0x2a9d8f;surfFillMat.color.setHex(t);}
+  if(surfWireMat){const t=PTINTS[curPlane]||0x2a9d8f;surfWireMat.color.setHex(t);}
+  syncSurf();
+}));
+// Surface type buttons (only those with data-surf)
+document.querySelectorAll('[data-surf]').forEach(b=>b.addEventListener('click',function(){
+  document.querySelectorAll('[data-surf]').forEach(x=>x.classList.remove('on'));
+  this.classList.add('on');surfType=this.dataset.surf;buildSurf();
+}));
+
+document.querySelectorAll('.cw').forEach(sw=>sw.addEventListener('click',function(){
+  curColor=this.dataset.c;
+  document.querySelectorAll('.cw').forEach(c=>c.classList.remove('on'));
+  document.getElementById('ccpick').classList.remove('on');
+  this.classList.add('on');
+}));
+document.getElementById('cpick').addEventListener('input',function(){
+  curColor=this.value;
+  document.querySelectorAll('.cw').forEach(c=>c.classList.remove('on'));
+  document.getElementById('ccpick').classList.add('on');
+});
+
+document.getElementById('szsld').addEventListener('input',function(){brushSz=+this.value;document.getElementById('szv').textContent=brushSz;if(document.getElementById('pb-sz'))document.getElementById('pb-sz').value=brushSz;});
+document.getElementById('opsld').addEventListener('input',function(){brushOp=+this.value/100;document.getElementById('opv').textContent=this.value;if(document.getElementById('pb-op'))document.getElementById('pb-op').value=this.value;});
+
+// Portrait bar wiring
+(function(){
+  const pb = id => document.getElementById(id);
+  if(!pb('pb-draw')) return;
+  [['pb-draw','draw'],['pb-erase','erase'],['pb-pan','pan'],['pb-orbit','orbit']].forEach(([id,m])=>{
+    const el=pb(id); if(el) el.addEventListener('click',()=>setMode(m));
+  });
+  const pfb=pb('pb-flat'); if(pfb)pfb.addEventListener('click',()=>pb('bflat').click());
+  const pfi=pb('pb-fill'); if(pfi)pfi.addEventListener('click',()=>pb('bfill').click());
+  const psu=pb('pb-surf'); if(psu)psu.addEventListener('click',()=>pb('bsurf').click());
+  const pde=pb('pb-depth');if(pde)pde.addEventListener('click',()=>pb('bdepth').click());
+  const ppr=pb('pb-persp');if(ppr)ppr.addEventListener('click',()=>{pb('bpersp').click();ppr.textContent=pb('bpersp').textContent;});
+  const pun=pb('pb-undo'); if(pun)pun.addEventListener('click',undo);
+  const pcl=pb('pb-clear');if(pcl)pcl.addEventListener('click',clearAll);
+  const psz=pb('pb-sz'); if(psz)psz.addEventListener('input',function(){pb('szsld').value=this.value;pb('szsld').dispatchEvent(new Event('input'));});
+  const pop=pb('pb-op'); if(pop)pop.addEventListener('input',function(){pb('opsld').value=this.value;pb('opsld').dispatchEvent(new Event('input'));});
+  const pgr=pb('pb-greset'); if(pgr)pgr.addEventListener('click',()=>pb('greset').click());
+  const pgs=pb('pb-gsnap');  if(pgs)pgs.addEventListener('click',()=>pb('gsnap').click());
+  // Mode/axis buttons already wired inside gizmo IIFE via setGizmoMode/setAxisFilter
+})();
+
+window.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.shiftKey){e.preventDefault();undo();return;}
+  if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.key==='z'&&e.shiftKey))){e.preventDefault();redo();return;}
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  switch(e.key.toLowerCase()){
+    case 'd':setMode('draw');break;case 'e':setMode('erase');break;
+    case 'o':setMode('orbit');break;case 'p':setMode('pan');break;
+    case 'f':document.getElementById('bflat').click();break;
+    case 'v':document.getElementById('bpersp').click();break;
+    case 'x':document.getElementById('bdepth').click();break;
+    case 'a':toggleAxis(!axisLinesOn);break;
+    case 's':document.getElementById('bsmooth').click();break;
+    case 'c':if(window._snapToView)window._snapToView();break;
+    case 'l':document.getElementById('bfill').click();break;
+  }
+});
+window.addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);syncOrtho();updCam();
+  updateLayoutMode();
+});
+
+function updateLayoutMode() {
+  const isPortrait = window.innerWidth / window.innerHeight < 0.75;
+  const pb  = document.getElementById('portrait-bar');
+  const sc  = document.getElementById('sidecol');
+  const bs  = document.getElementById('bside');
+  const sb  = document.getElementById('sbar');
+  if (isPortrait) {
+    pb.classList.add('active');
+    if (sc) sc.style.display  = 'none';
+    if (bs) bs.style.display  = 'none';
+    if (sb) sb.style.display  = 'none';
+    setTimeout(()=>{
+      if (window._pbNcDraw) window._pbNcDraw();
+      if (window._pbGcDraw) window._pbGcDraw();
+    }, 50); // slight delay so canvas has laid out
+  } else {
+    pb.classList.remove('active');
+    if (sc) sc.style.display  = '';
+    if (bs) bs.style.display  = '';
+    if (sb) sb.style.display  = '';
+  }
+}
+// Run once at startup
+updateLayoutMode();
+
+// ================================================================
+//  NAVCUBE — top-right viewport rotation gizmo
+//  Shows a 3D cube that reflects the camera orientation.
+//  Drag to orbit. Click a face label to snap to that view.
+// ================================================================
+(function(){
+  const nc  = document.getElementById('navcube');
+  const ctx = nc.getContext('2d');
+  const W=nc.width, H=nc.height, CX=W/2, CY=H/2;
+
+  // Face definitions: label, normal direction, snap theta/phi
+  const FACES = [
+    { label:'TOP',    n:[0, 0, 1],  t:0.6,    p:0.01  },
+    { label:'BTM',    n:[0, 0,-1],  t:0.6,    p:Math.PI-0.01 },
+    { label:'FRONT',  n:[0,-1, 0],  t:Math.PI/2, p:Math.PI/2 },
+    { label:'BACK',   n:[0, 1, 0],  t:-Math.PI/2, p:Math.PI/2 },
+    { label:'RIGHT',  n:[1, 0, 0],  t:0,      p:Math.PI/2 },
+    { label:'LEFT',   n:[-1,0, 0],  t:Math.PI, p:Math.PI/2 },
+  ];
+
+  // Axis colours matching main gizmo
+  const AX_COL = { x:'#e03040', y:'#22bb55', z:'#3377ee' };
+
+  let ncDrag = null;
+  let hovFace = null;
+
+  // Project a 3D point using camera view (simple perspective)
+  function project(v) {
+    // Build view matrix from camera state
+    const theta = cam.theta, phi = cam.phi;
+    // Camera right/up/fwd from spherical coords
+    const fwd = new THREE.Vector3(
+      -Math.sin(phi)*Math.cos(theta),
+      -Math.sin(phi)*Math.sin(theta),
+      -Math.cos(phi)
+    );
+    const right = new THREE.Vector3(-Math.sin(theta), Math.cos(theta), 0);
+    const up    = new THREE.Vector3().crossVectors(right, fwd).normalize();
+
+    const x = v[0]*right.x + v[1]*right.y + v[2]*right.z;
+    const y = v[0]*up.x    + v[1]*up.y    + v[2]*up.z;
+    const z = v[0]*fwd.x   + v[1]*fwd.y   + v[2]*fwd.z;
+    const scale = 28 / (z + 3.5); // perspective divide
+    return { x: CX + x*scale*1.1, y: CY - y*scale*1.1, z };
+  }
+
+  // Cube vertices (unit cube)
+  const V = [
+    [-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1], // back face  0-3
+    [-1,-1, 1],[1,-1, 1],[1,1, 1],[-1,1, 1], // front face 4-7
+  ];
+
+  // Cube faces: [v0,v1,v2,v3], normal, label, colour
+  const CUBE_FACES = [
+    { vIdx:[4,5,6,7], n:[0,0, 1], label:'Z+', col:'#e8ddd0' }, // Top
+    { vIdx:[0,1,2,3], n:[0,0,-1], label:'Z-', col:'#ddd3c0' }, // Bottom
+    { vIdx:[4,0,3,7], n:[-1,0,0], label:'X-', col:'#e8ddd0' }, // Left
+    { vIdx:[1,5,6,2], n:[ 1,0,0], label:'X+', col:'#e8ddd0' }, // Right
+    { vIdx:[7,6,2,3], n:[0, 1,0], label:'Y+', col:'#ddd8c8' }, // Back
+    { vIdx:[4,5,1,0], n:[0,-1,0], label:'Y-', col:'#ddd8c8' }, // Front
+  ];
+
+  function drawCube() {
+    ctx.clearRect(0,0,W,H);
+
+    // Sort faces back-to-front
+    const proj_faces = CUBE_FACES.map(f => {
+      const verts = f.vIdx.map(i => project(V[i]));
+      const avgZ  = verts.reduce((s,v)=>s+v.z,0)/4;
+      // Dot product of face normal with camera forward → visibility
+      const fwd = new THREE.Vector3(
+        -Math.sin(cam.phi)*Math.cos(cam.theta),
+        -Math.sin(cam.phi)*Math.sin(cam.theta),
+        -Math.cos(cam.phi)
+      );
+      const dot = f.n[0]*(-fwd.x)+f.n[1]*(-fwd.y)+f.n[2]*(-fwd.z);
+      return { ...f, verts, avgZ, dot };
+    }).sort((a,b)=>a.avgZ-b.avgZ);
+
+    // Draw faces
+    proj_faces.forEach(f => {
+      if (f.dot < -0.1) return; // back-face cull
+      const isHov = hovFace===f.label;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(f.verts[0].x, f.verts[0].y);
+      f.verts.forEach(v => ctx.lineTo(v.x, v.y));
+      ctx.closePath();
+
+      // Fill: brighter when hovered
+      const alpha = 0.15 + f.dot*0.45 + (isHov?0.25:0);
+      ctx.globalAlpha = Math.min(1, alpha);
+      ctx.fillStyle = isHov ? '#fff' : f.col;
+      ctx.fill();
+
+      ctx.globalAlpha = 0.5 + f.dot*0.4;
+      ctx.strokeStyle = 'rgba(26,26,46,.35)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+
+      // Face label
+      if (f.dot > 0.15) {
+        const cx = f.verts.reduce((s,v)=>s+v.x,0)/4;
+        const cy = f.verts.reduce((s,v)=>s+v.y,0)/4;
+        ctx.globalAlpha = Math.min(1, f.dot*1.4 + (isHov?0.3:0));
+        ctx.fillStyle = isHov ? '#1a1a2e' : 'rgba(26,26,46,.7)';
+        ctx.font = `${isHov?'bold ':''} ${f.dot>0.6?7:6}px DM Mono,monospace`;
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(f.label, cx, cy);
+      }
+      ctx.restore();
+    });
+
+    // Draw axis arrows from centre
+    [
+      { dir:[1,0,0], col:AX_COL.x, lbl:'X' },
+      { dir:[0,1,0], col:AX_COL.y, lbl:'Y' },
+      { dir:[0,0,1], col:AX_COL.z, lbl:'Z' },
+    ].forEach(ax => {
+      const tip = project([ax.dir[0]*1.55, ax.dir[1]*1.55, ax.dir[2]*1.55]);
+      const neg = project([-ax.dir[0]*.7, -ax.dir[1]*.7, -ax.dir[2]*.7]);
+      if (tip.z < neg.z) return; // only draw if axis is facing us-ish
+      ctx.save();
+      ctx.strokeStyle=ax.col; ctx.fillStyle=ax.col;
+      ctx.lineWidth=1.8; ctx.globalAlpha=0.85; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(CX, CY); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+      // arrowhead
+      const dx=tip.x-CX, dy=tip.y-CY, len=Math.hypot(dx,dy)||1;
+      const nx=dx/len, ny=dy/len, px=-ny*3, py=nx*3;
+      ctx.beginPath();
+      ctx.moveTo(tip.x,tip.y);
+      ctx.lineTo(tip.x-nx*6+px,tip.y-ny*6+py);
+      ctx.lineTo(tip.x-nx*6-px,tip.y-ny*6-py);
+      ctx.closePath(); ctx.fill();
+      // label
+      ctx.font='bold 7px DM Mono,monospace';
+      ctx.fillText(ax.lbl, tip.x+nx*5, tip.y+ny*5);
+      ctx.restore();
+    });
+
+    // Hint ring
+    ctx.save();
+    ctx.strokeStyle='rgba(26,26,46,.1)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(CX,CY,W/2-3,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // Face hit-test: find which face the pointer is over
+  function hitFace(mx, my) {
+    const proj_faces = CUBE_FACES.map(f => {
+      const verts = f.vIdx.map(i => project(V[i]));
+      const fwd = new THREE.Vector3(
+        -Math.sin(cam.phi)*Math.cos(cam.theta),
+        -Math.sin(cam.phi)*Math.sin(cam.theta),
+        -Math.cos(cam.phi)
+      );
+      const dot = f.n[0]*(-fwd.x)+f.n[1]*(-fwd.y)+f.n[2]*(-fwd.z);
+      const avgZ = verts.reduce((s,v)=>s+v.z,0)/4;
+      return {...f, verts, dot, avgZ};
+    }).filter(f=>f.dot>0.05).sort((a,b)=>b.avgZ-a.avgZ);
+
+    for (const f of proj_faces) {
+      // Point-in-polygon test
+      const verts = f.verts;
+      let inside = false;
+      for (let i=0,j=verts.length-1;i<verts.length;j=i++) {
+        const xi=verts[i].x,yi=verts[i].y,xj=verts[j].x,yj=verts[j].y;
+        if(((yi>my)!==(yj>my))&&(mx<(xj-xi)*(my-yi)/(yj-yi)+xi)) inside=!inside;
+      }
+      if (inside) return f.label;
+    }
+    return null;
+  }
+
+  // Snap views
+  const SNAP = {
+    'Z+':{ t:-Math.PI/2, p:0.01          }, // Top    — camera above looking down
+    'Z-':{ t:-Math.PI/2, p:Math.PI-0.01  }, // Bottom — camera below looking up
+    'Y+':{ t: Math.PI/2, p:Math.PI/2     }, // Back   — camera along +Y
+    'Y-':{ t:-Math.PI/2, p:Math.PI/2     }, // Front  — camera along -Y (sketchbook front)
+    'X+':{ t: Math.PI,   p:Math.PI/2     }, // Right  — camera along -X
+    'X-':{ t: 0,         p:Math.PI/2     }, // Left   — camera along +X
+  };
+
+  const VIEW_CYCLE = ['Y-','X+','Z+','Y+','X-','Z-']; // Front/Right/Top/Back/Left/Bottom
+  const VIEW_NAMES = {'X+':'FRONT','Y-':'RIGHT','Z+':'TOP','X-':'BACK','Y+':'LEFT','Z-':'BOTTOM'};
+  let viewIdx = 0; // start at Front (X+)
+
+  function snapTo(label) {
+    if (!SNAP[label]) return;
+    cam.theta = SNAP[label].t;
+    cam.phi   = SNAP[label].p;
+    // Sync cycle index
+    const idx = VIEW_CYCLE.indexOf(label);
+    if (idx >= 0) viewIdx = idx;
+    updCam();
+    // Flash view name in status
+    const stxt = document.getElementById('stxt');
+    if (stxt) { stxt.textContent = VIEW_NAMES[label] || label; setTimeout(()=>stxt.textContent=STXT[mode]||'', 1200); }
+  }
+
+  // Expose snapTo globally so scycleview button can call it
+  window._snapTo = function(label) { snapTo(label); drawCube(); };
+  window._snapToView = function() {
+    viewIdx = (viewIdx + 1) % VIEW_CYCLE.length;
+    snapTo(VIEW_CYCLE[viewIdx]);
+    drawCube();
+  };
+
+  // Pointer handling
+  function getPos(e) {
+    const r=nc.getBoundingClientRect();
+    // touchend has empty touches[] — use changedTouches instead
+    const src = e.touches && e.touches.length > 0 ? e.touches[0]
+              : e.changedTouches && e.changedTouches.length > 0 ? e.changedTouches[0]
+              : e;
+    return {x:src.clientX-r.left, y:src.clientY-r.top};
+  }
+
+  let ncLastTap = 0;
+  nc.addEventListener('mousedown', e => {
+    e.stopPropagation();
+    const p=getPos(e);
+    ncDrag={sx:p.x,sy:p.y,st:cam.theta,sp:cam.phi,moved:false};
+  });
+  nc.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    document.getElementById('bpersp').click();
+    document.getElementById('spersp').textContent = document.getElementById('bpersp').textContent;
+    document.getElementById('spersp').classList.toggle('on', document.getElementById('bpersp').classList.contains('on'));
+  });
+
+  nc.addEventListener('mousemove', e => {
+    e.stopPropagation();
+    const p=getPos(e);
+    if (!ncDrag) {
+      const hf=hitFace(p.x,p.y);
+      if(hf!==hovFace){hovFace=hf;drawCube();}
+      return;
+    }
+    const dx=p.x-ncDrag.sx, dy=p.y-ncDrag.sy;
+    if(Math.hypot(dx,dy)>3) ncDrag.moved=true;
+    if(ncDrag.moved){
+      cam.theta = ncDrag.st + dx*0.022;
+      cam.phi   = Math.max(0.05,Math.min(Math.PI-0.05, ncDrag.sp-dy*0.022));
+      updCam(); drawCube();
+    }
+  });
+  // Orthogonal snap targets: all 6 principal views
+  const ORTHO_SNAPS = [
+    {t:-Math.PI/2, p:Math.PI/2     }, // Front  Y-
+    {t: Math.PI/2, p:Math.PI/2     }, // Back   Y+
+    {t: Math.PI,   p:Math.PI/2     }, // Right  X+
+    {t: 0,         p:Math.PI/2     }, // Left   X-
+    {t:-Math.PI/2, p:0.01          }, // Top    Z+
+    {t:-Math.PI/2, p:Math.PI-0.01  }, // Bottom Z-
+  ];
+  const ORTHO_THRESH = Math.PI / 8;  // ~22.5° — wide enough for top/bottom
+
+  function tryOrthoSnap() {
+    let best = null, bestDist = Infinity;
+    for (const s of ORTHO_SNAPS) {
+      // Wrap theta difference
+      let dt = ((cam.theta - s.t) + Math.PI*3) % (Math.PI*2) - Math.PI;
+      const dp = cam.phi - s.p;
+      const dist = Math.sqrt(dt*dt + dp*dp);
+      if (dist < bestDist) { bestDist=dist; best=s; }
+    }
+    if (bestDist < ORTHO_THRESH) {
+      cam.theta = best.t; cam.phi = best.p; updCam(); drawCube();
+      return true;
+    }
+    return false;
+  }
+
+  nc.addEventListener('mouseup', e => {
+    e.stopPropagation();
+    if(ncDrag && !ncDrag.moved){
+      const p=getPos(e), hf=hitFace(p.x,p.y);
+      if(hf) snapTo(hf);
+    } else if(ncDrag && ncDrag.moved) {
+      tryOrthoSnap(); // snap on drag-end if close to orthogonal
+    }
+    ncDrag=null; drawCube();
+  });
+  nc.addEventListener('mouseleave', () => { hovFace=null; ncDrag=null; drawCube(); });
+
+  nc.addEventListener('touchstart', e=>{e.preventDefault();e.stopPropagation();const p=getPos(e);ncDrag={sx:p.x,sy:p.y,st:cam.theta,sp:cam.phi,moved:false};},{passive:false});
+  nc.addEventListener('touchmove',  e=>{e.preventDefault();e.stopPropagation();if(!ncDrag)return;const p=getPos(e);const dx=p.x-ncDrag.sx,dy=p.y-ncDrag.sy;if(Math.hypot(dx,dy)>4)ncDrag.moved=true;if(ncDrag.moved){cam.theta=ncDrag.st+dx*0.022;cam.phi=Math.max(0.05,Math.min(Math.PI-0.05,ncDrag.sp-dy*0.022));updCam();drawCube();}},{passive:false});
+  nc.addEventListener('touchend', e => {
+    e.stopPropagation();
+    const now = Date.now();
+    const wasDoubleTap = (now - ncLastTap < 300) && !(ncDrag && ncDrag.moved);
+    if (wasDoubleTap) {
+      document.getElementById('bpersp').click();
+      document.getElementById('spersp').textContent = document.getElementById('bpersp').textContent;
+    } else if (ncDrag && !ncDrag.moved) {
+      const p = getPos(e);
+      const hf = hitFace(p.x, p.y);
+      if (hf) snapTo(hf);
+    } else if (ncDrag && ncDrag.moved) {
+      tryOrthoSnap();
+    }
+    ncLastTap = now;
+    ncDrag = null;
+    drawCube();
+  });
+
+  drawCube();
+  window._ncDraw = drawCube; // called from updCam
+
+  // Mirror navcube for portrait bar (pb-navcube)
+  window._pbNcDraw = function() {
+    const pnc = document.getElementById('pb-navcube');
+    if (!pnc) return;
+    const pctx = pnc.getContext('2d');
+    const pW = pnc.width, pH = pnc.height, pCX=pW/2, pCY=pH/2;
+    pctx.clearRect(0,0,pW,pH);
+    // Draw same cube but scaled to smaller canvas
+    const scale = pW / W;
+    pctx.save();
+    pctx.scale(scale, scale);
+    // Re-run the face drawing on this context — just blit via offscreen
+    const offscreen = document.createElement('canvas');
+    offscreen.width = W; offscreen.height = H;
+    const octx = offscreen.getContext('2d');
+    // Temporarily redirect ctx to octx... too complex. Just draw directly.
+    pctx.restore();
+    // Simple approach: draw the navcube directly at portrait scale
+    const sv = pW / W;
+    CUBE_FACES.map(f => {
+      const verts = f.vIdx.map(i => {
+        const v = project(V[i]);
+        return {x: pCX + (v.x-CX)*sv, y: pCY + (v.y-CY)*sv, z: v.z};
+      });
+      const fwd2 = new THREE.Vector3(
+        -Math.sin(cam.phi)*Math.cos(cam.theta),
+        -Math.sin(cam.phi)*Math.sin(cam.theta),
+        -Math.cos(cam.phi)
+      );
+      const dot = f.n[0]*(-fwd2.x)+f.n[1]*(-fwd2.y)+f.n[2]*(-fwd2.z);
+      return {...f, verts, dot, avgZ: verts.reduce((s,v)=>s+v.z,0)/4};
+    }).sort((a,b)=>a.avgZ-b.avgZ).forEach(f=>{
+      if(f.dot < -0.1) return;
+      pctx.save();
+      pctx.beginPath();
+      pctx.moveTo(f.verts[0].x,f.verts[0].y);
+      f.verts.forEach(v=>pctx.lineTo(v.x,v.y));
+      pctx.closePath();
+      const alpha=0.15+f.dot*0.45;
+      pctx.globalAlpha=Math.min(1,alpha); pctx.fillStyle=f.col; pctx.fill();
+      pctx.globalAlpha=0.5+f.dot*0.4; pctx.strokeStyle='rgba(26,26,46,.35)'; pctx.lineWidth=0.8; pctx.stroke();
+      if(f.dot>0.15){
+        const cx=f.verts.reduce((s,v)=>s+v.x,0)/4, cy=f.verts.reduce((s,v)=>s+v.y,0)/4;
+        pctx.globalAlpha=Math.min(1,f.dot*1.4); pctx.fillStyle='rgba(26,26,46,.7)';
+        pctx.font='6px DM Mono,monospace'; pctx.textAlign='center'; pctx.textBaseline='middle';
+        pctx.fillText(f.label,cx,cy);
+      }
+      pctx.restore();
+    });
+    // Axis arrows
+    [{dir:[1,0,0],col:'#e03040',lbl:'X'},{dir:[0,1,0],col:'#22bb55',lbl:'Y'},{dir:[0,0,1],col:'#3377ee',lbl:'Z'}].forEach(ax=>{
+      const tip=project([ax.dir[0]*1.55,ax.dir[1]*1.55,ax.dir[2]*1.55]);
+      const neg=project([-ax.dir[0]*.7,-ax.dir[1]*.7,-ax.dir[2]*.7]);
+      if(tip.z<neg.z) return;
+      const tx=pCX+(tip.x-CX)*sv, ty=pCY+(tip.y-CY)*sv;
+      pctx.save();
+      pctx.strokeStyle=ax.col; pctx.fillStyle=ax.col; pctx.lineWidth=1.5; pctx.globalAlpha=0.85; pctx.lineCap='round';
+      pctx.beginPath(); pctx.moveTo(pCX,pCY); pctx.lineTo(tx,ty); pctx.stroke();
+      pctx.font='bold 6px DM Mono,monospace'; pctx.fillText(ax.lbl,tx+(tx-pCX)*0.15,ty+(ty-pCY)*0.15);
+      pctx.restore();
+    });
+    // Hint ring
+    pctx.save(); pctx.strokeStyle='rgba(26,26,46,.1)'; pctx.lineWidth=1;
+    pctx.beginPath(); pctx.arc(pCX,pCY,pW/2-2,0,Math.PI*2); pctx.stroke(); pctx.restore();
+  };
+
+  // Make pb-navcube interactive
+  const pnc2 = document.getElementById('pb-navcube');
+  if (pnc2) {
+    let pncDrag = null;
+    pnc2.addEventListener('mousedown', e=>{e.stopPropagation();const r=pnc2.getBoundingClientRect();pncDrag={sx:e.clientX-r.left,sy:e.clientY-r.top,st:cam.theta,sp:cam.phi,moved:false};});
+    pnc2.addEventListener('mousemove', e=>{if(!pncDrag)return;const r=pnc2.getBoundingClientRect();const dx=e.clientX-r.left-pncDrag.sx,dy=e.clientY-r.top-pncDrag.sy;if(Math.hypot(dx,dy)>3)pncDrag.moved=true;if(pncDrag.moved){cam.theta=pncDrag.st+dx*0.028;cam.phi=Math.max(0.05,Math.min(Math.PI-0.05,pncDrag.sp-dy*0.028));updCam();window._pbNcDraw&&window._pbNcDraw();}});
+    pnc2.addEventListener('mouseup',   ()=>{pncDrag=null;});
+    const pncGetT = e => e.touches&&e.touches.length>0 ? e.touches[0] : e.changedTouches&&e.changedTouches.length>0 ? e.changedTouches[0] : null;
+    pnc2.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();const t=pncGetT(e);if(!t)return;const r=pnc2.getBoundingClientRect();pncDrag={sx:t.clientX-r.left,sy:t.clientY-r.top,st:cam.theta,sp:cam.phi,moved:false};window._pbNcDraw&&window._pbNcDraw();},{passive:false});
+    pnc2.addEventListener('touchmove', e=>{e.preventDefault();e.stopPropagation();if(!pncDrag)return;const t=pncGetT(e);if(!t)return;const r=pnc2.getBoundingClientRect();const dx=t.clientX-r.left-pncDrag.sx,dy=t.clientY-r.top-pncDrag.sy;if(Math.hypot(dx,dy)>4)pncDrag.moved=true;if(pncDrag.moved){cam.theta=pncDrag.st+dx*0.028;cam.phi=Math.max(0.05,Math.min(Math.PI-0.05,pncDrag.sp-dy*0.028));updCam();window._pbNcDraw&&window._pbNcDraw();}},{passive:false});
+    pnc2.addEventListener('touchend',  e=>{e.stopPropagation();pncDrag=null;});
+  }
+})();
+
+// ================================================================
+//  INIT + RENDER LOOP
+// ================================================================
+syncSurf();
+setMode('draw');
+document.getElementById('bsurf').classList.add('on');
+// fill is off by default — no classList.add('on') for bfill
+// Layout mode determined by screen ratio (called again after everything is ready)
+if (typeof updateLayoutMode === 'function') updateLayoutMode();
+
+function animate(){
+  requestAnimationFrame(animate);
+  if(depthCuesOn) updateDepth();
+  renderer.render(scene,activeCam());
+}
+animate();
+</script>
+
+</body>
+</html>

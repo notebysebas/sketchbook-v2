@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="80" fill="#d4b896"/>
+  <!-- Subtle grid -->
+  <line x1="0" y1="128" x2="512" y2="128" stroke="#c8a878" stroke-width="1" opacity="0.4"/>
+  <line x1="0" y1="256" x2="512" y2="256" stroke="#c8a878" stroke-width="1" opacity="0.4"/>
+  <line x1="0" y1="384" x2="512" y2="384" stroke="#c8a878" stroke-width="1" opacity="0.4"/>
+  <line x1="128" y1="0" x2="128" y2="512" stroke="#c8a878" stroke-width="1" opacity="0.4"/>
+  <line x1="256" y1="0" x2="256" y2="512" stroke="#c8a878" stroke-width="1" opacity="0.4"/>
+  <line x1="384" y1="0" x2="384" y2="512" stroke="#c8a878" stroke-width="1" opacity="0.4"/>
+  <!-- Pencil body rotated -35deg around centre -->
+  <g transform="translate(220, 256) rotate(-35)">
+    <rect x="-18" y="-130" width="36" height="170" rx="7" fill="#1a1a2e"/>
+    <polygon points="-18,40 18,40 0,82" fill="#e8c49a"/>
+    <polygon points="-4,68 4,68 0,82" fill="#2a1a0a"/>
+    <rect x="-18" y="-152" width="36" height="24" rx="5" fill="#c0392b"/>
+    <rect x="-14" y="-130" width="28" height="8" rx="0" fill="#ffffff" opacity="0.08"/>
+  </g>
+  <!-- 3D cube wireframe bottom-right -->
+  <g transform="translate(348, 358)" stroke="#1a1a2e" stroke-width="9" fill="none" opacity="0.55" stroke-linejoin="round">
+    <rect x="-52" y="-52" width="104" height="104"/>
+    <rect x="-24" y="-80" width="104" height="104"/>
+    <line x1="-52" y1="-52" x2="-24" y2="-80"/>
+    <line x1="52"  y1="-52" x2="80"  y2="-80"/>
+    <line x1="52"  y1="52"  x2="80"  y2="24"/>
+    <line x1="-52" y1="52"  x2="-24" y2="24"/>
+  </g>
+</svg>
