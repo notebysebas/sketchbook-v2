@@ -418,8 +418,8 @@ function buildSurf() {
   surfMesh = null;
   const tint = PTINTS[curPlane] || 0x2a9d8f;
   let geo;
-  if      (surfType==='plane')    geo = new THREE.PlaneGeometry(6,6);
-  else if (surfType==='cube')     geo = new THREE.BoxGeometry(3,3,3);
+  if      (surfType==='plane')    geo = new THREE.PlaneGeometry(6,6,6,6);
+  else if (surfType==='cube')     geo = new THREE.BoxGeometry(3,3,3,3,3,3);
   else if (surfType==='cylinder') geo = new THREE.CylinderGeometry(1.5,1.5,3,32);
   else                            geo = new THREE.SphereGeometry(1.8,32,24);
 
@@ -431,7 +431,8 @@ function buildSurf() {
   surfMesh.renderOrder = 0;
   surfGroup.add(surfMesh);
 
-  const wgeo = new THREE.WireframeGeometry(geo);
+  // EdgesGeometry only draws shared face edges — no diagonal triangle lines
+  const wgeo = new THREE.EdgesGeometry(geo, 15);
   surfWireMat = new THREE.LineBasicMaterial({color:tint,transparent:true,opacity:0.55,depthWrite:false});
   const wire = new THREE.LineSegments(wgeo, surfWireMat);
   wire.renderOrder = 1;
